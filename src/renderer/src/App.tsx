@@ -32,6 +32,11 @@ import type {
   WorkspaceSnapshot
 } from '../../shared/ipc'
 import {
+  calculateDashboard,
+  filterWorkEntries,
+  type WorkEntryFilters
+} from '../../shared/work-report'
+import {
   Badge,
   Button,
   Dialog,
@@ -55,11 +60,6 @@ const emptyWorkspace: WorkspaceSnapshot = {
   entries: []
 }
 const today = (): string => new Date().toISOString().slice(0, 10)
-const entryMinutes = (entry: WorkspaceEntry): number => {
-  const [sh, sm] = entry.startTime.split(':').map(Number)
-  const [eh, em] = entry.endTime.split(':').map(Number)
-  return eh * 60 + em - sh * 60 - sm
-}
 const formatDuration = (minutes: number): string =>
   `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
 
@@ -67,8 +67,13 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
   const [databases, setDatabases] = useState<DatabaseFile[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
   useEffect(() => {
-    void window.mowl.database.list().then((registry) => setDatabases(registry.databases))
+    void window.mowl.database
+      .list()
+      .then((registry) => setDatabases(registry.databases))
+      .catch((caught) => setError(String(caught)))
+      .finally(() => setLoading(false))
   }, [])
   async function open(database: DatabaseFile): Promise<void> {
     try {
@@ -92,6 +97,18 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
       setError(String(caught))
     }
   }
+  async function locate(item: DatabaseFile): Promise<void> {
+    try {
+      const metadata = await window.mowl.database.locate({ missingFilePath: item.filePath })
+      if (metadata) onOpen(metadata)
+    } catch (caught) {
+      setError(String(caught))
+    }
+  }
+  async function remove(item: DatabaseFile): Promise<void> {
+    await window.mowl.database.remove({ filePath: item.filePath })
+    setDatabases((current) => current.filter((candidate) => candidate.filePath !== item.filePath))
+  }
   return (
     <main className="startup-shell">
       <section className="startup-panel">
@@ -103,16 +120,12 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
         </div>
         {error && <div className="notice error">{error}</div>}
         <div className="database-list">
-          {databases.length === 0 && (
+          {loading && <p className="empty-state">Loading databases...</p>}
+          {!loading && databases.length === 0 && (
             <p className="empty-state">No databases yet. Create your first work log.</p>
           )}
           {databases.map((item) => (
-            <button
-              className="database-row"
-              disabled={item.status === 'unavailable'}
-              key={item.filePath}
-              onClick={() => void open(item)}
-            >
+            <div className={`database-row ${item.status}`} key={item.filePath}>
               <span className="database-icon">
                 <Database size={19} />
               </span>
@@ -121,8 +134,31 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
                 <small>{item.description || item.filePath}</small>
               </span>
               <Badge tone={item.status === 'available' ? 'green' : 'red'}>{item.status}</Badge>
-              <ChevronRight size={17} />
-            </button>
+              {item.status === 'available' ? (
+                <Button
+                  aria-label={`Open ${item.displayName}`}
+                  onClick={() => void open(item)}
+                  size="icon"
+                  variant="ghost"
+                >
+                  <ChevronRight size={17} />
+                </Button>
+              ) : (
+                <span className="database-actions">
+                  <Button onClick={() => void locate(item)} size="sm" variant="outline">
+                    Locate
+                  </Button>
+                  <Button
+                    aria-label="Remove unavailable database"
+                    onClick={() => void remove(item)}
+                    size="icon"
+                    variant="ghost"
+                  >
+                    <Trash2 size={15} />
+                  </Button>
+                </span>
+              )}
+            </div>
           ))}
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -174,10 +210,12 @@ function Status({ status }: { status: 'confirmed' | 'draft' }): React.JSX.Elemen
   )
 }
 function Stat({
+  detail,
   icon,
   label,
   value
 }: {
+  detail?: string
   icon: ReactNode
   label: string
   value: string
@@ -188,6 +226,7 @@ function Stat({
       <div>
         <small>{label}</small>
         <strong>{value}</strong>
+        {detail && <small>{detail}</small>}
       </div>
     </div>
   )
@@ -959,6 +998,25 @@ function PageHeading({
     </div>
   )
 }
+
+function StatePanel({
+  children,
+  icon,
+  title
+}: {
+  children: ReactNode
+  icon: ReactNode
+  title: string
+}): React.JSX.Element {
+  return (
+    <section className="state-panel">
+      <span>{icon}</span>
+      <h2>{title}</h2>
+      <div>{children}</div>
+    </section>
+  )
+}
+
 function SettingsView({
   dark,
   setDark
@@ -1040,23 +1098,32 @@ function Workspace({
   const [snapshot, setSnapshot] = useState(emptyWorkspace),
     [view, setView] = useState<View>('dashboard'),
     [date, setDate] = useState(today()),
-    [filter, setFilter] = useState(''),
+    [filters, setFilters] = useState<WorkEntryFilters>({}),
     [editor, setEditor] = useState<{ entry?: WorkspaceEntry; kind: EntryKind } | null>(null),
     [error, setError] = useState(''),
+    [loadState, setLoadState] = useState<'error' | 'loading' | 'ready'>('loading'),
     [dark, setDark] = useState(localStorage.getItem('mowl-theme') === 'dark')
   async function reload(): Promise<void> {
     try {
       setSnapshot(await window.mowl.workspace.get())
       setError('')
+      setLoadState('ready')
     } catch (caught) {
       setError(String(caught))
+      setLoadState('error')
     }
   }
   useEffect(() => {
     void window.mowl.workspace
       .get()
-      .then(setSnapshot)
-      .catch((caught) => setError(String(caught)))
+      .then((value) => {
+        setSnapshot(value)
+        setLoadState('ready')
+      })
+      .catch((caught) => {
+        setError(String(caught))
+        setLoadState('error')
+      })
   }, [])
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
@@ -1064,13 +1131,17 @@ function Workspace({
   }, [dark])
   const day = snapshot.days.find((item) => item.date === date),
     dayEntries = snapshot.entries.filter((entry) => entry.date === date)
-  const shownEntries = snapshot.entries.filter((entry) =>
-    [
-      entry.description,
-      entry.ticketNumber,
-      snapshot.accounts.find((item) => item.id === entry.accountId)?.code
-    ].some((value) => value?.toLowerCase().includes(filter.toLowerCase()))
+  const shownEntries = filterWorkEntries(snapshot, filters)
+  const dashboard = calculateDashboard(snapshot, today())
+  const filteredAccounts = snapshot.accounts.filter(
+    (account) => !filters.customerId || account.customerId === filters.customerId
   )
+  function updateFilter<Key extends keyof WorkEntryFilters>(
+    key: Key,
+    value: WorkEntryFilters[Key]
+  ): void {
+    setFilters((current) => ({ ...current, [key]: value || undefined }))
+  }
   async function status(value: 'confirmed' | 'draft'): Promise<void> {
     try {
       await window.mowl.workspace.setDayStatus({ date, status: value })
@@ -1161,25 +1232,50 @@ function Workspace({
             </Button>
           </div>
         </header>
-        {error && <div className="notice error workspace-notice">{error}</div>}
+        {error && loadState !== 'error' && (
+          <div className="notice error workspace-notice">{error}</div>
+        )}
         <div className="workspace-scroll">
-          {view === 'dashboard' && (
+          {loadState === 'loading' && (
+            <StatePanel icon={<Clock3 size={24} />} title="Loading workspace">
+              Reading entries and reference data...
+            </StatePanel>
+          )}
+          {loadState === 'error' && (
+            <StatePanel
+              icon={<Database size={24} />}
+              title={
+                error.includes('database-not-open')
+                  ? 'Database unavailable'
+                  : 'Could not load workspace'
+              }
+            >
+              <p>{error}</p>
+              <div className="state-actions">
+                <Button onClick={() => void reload()} variant="outline">
+                  Try again
+                </Button>
+                <Button onClick={() => void switchDatabase()}>Choose database</Button>
+              </div>
+            </StatePanel>
+          )}
+          {loadState === 'ready' && view === 'dashboard' && (
             <section className="content-view">
-              <PageHeading eyebrow={date === today() ? 'TODAY' : date} title="Work overview">
+              <PageHeading eyebrow="TODAY" title="Work overview">
                 Recorded time and current day status.
               </PageHeading>
               <div className="stats-grid">
                 <Stat
                   icon={<Clock3 size={19} />}
-                  label="Recorded"
-                  value={formatDuration(
-                    dayEntries.reduce((sum, entry) => sum + entryMinutes(entry), 0)
-                  )}
+                  label="Today's total"
+                  value={formatDuration(dashboard.today.totalMinutes)}
+                  detail={`${formatDuration(dashboard.today.workMinutes)} work · ${formatDuration(dashboard.today.fillerMinutes)} filler`}
                 />
                 <Stat
                   icon={<BriefcaseBusiness size={19} />}
-                  label="Work entries"
-                  value={String(dayEntries.filter((entry) => entry.accountId !== null).length)}
+                  label="This week's total"
+                  value={formatDuration(dashboard.week.totalMinutes)}
+                  detail={`${formatDuration(dashboard.week.workMinutes)} work · ${formatDuration(dashboard.week.fillerMinutes)} filler`}
                 />
                 <Stat
                   icon={<Building2 size={19} />}
@@ -1192,40 +1288,154 @@ function Workspace({
                   value={day?.status ?? 'Draft'}
                 />
               </div>
-              <div className="section-heading">
-                <div>
-                  <h2>Recent entries</h2>
-                  <p>Latest recorded work and filler time.</p>
-                </div>
-                <Button onClick={() => setView('entries')} variant="ghost">
-                  View all
-                  <ChevronRight size={15} />
-                </Button>
-              </div>
-              <EntryTable
-                entries={[...snapshot.entries].reverse().slice(0, 6)}
-                onEdit={(entry) =>
-                  setEditor({ entry, kind: entry.accountId === null ? 'filler' : 'work' })
-                }
-                snapshot={snapshot}
-              />
+              {snapshot.entries.length === 0 ? (
+                <StatePanel icon={<Clock3 size={24} />} title="No time recorded yet">
+                  Add a work or filler entry to begin your dashboard.
+                </StatePanel>
+              ) : (
+                <>
+                  <section className="customer-summary">
+                    <div className="section-heading">
+                      <div>
+                        <h2>Summary by customer</h2>
+                        <p>
+                          {dashboard.weekFrom} to {dashboard.weekTo}
+                        </p>
+                      </div>
+                    </div>
+                    {dashboard.byCustomer.length === 0 ? (
+                      <p className="compact-empty">No customer work this week.</p>
+                    ) : (
+                      dashboard.byCustomer.map((item) => (
+                        <div className="summary-row" key={item.customerId}>
+                          <span className="color-label">
+                            <i style={{ background: item.color ?? '#8a8a8a' }} />
+                            {item.customerName}
+                          </span>
+                          <strong>{formatDuration(item.minutes)}</strong>
+                        </div>
+                      ))
+                    )}
+                    <div className="summary-row filler-summary">
+                      <span>Filler time</span>
+                      <strong>{formatDuration(dashboard.week.fillerMinutes)}</strong>
+                    </div>
+                  </section>
+                  <div className="section-heading">
+                    <div>
+                      <h2>Recent entries</h2>
+                      <p>Latest recorded work and filler time.</p>
+                    </div>
+                    <Button onClick={() => setView('entries')} variant="ghost">
+                      View all
+                      <ChevronRight size={15} />
+                    </Button>
+                  </div>
+                  <EntryTable
+                    entries={dashboard.recentEntries}
+                    onEdit={(entry) =>
+                      setEditor({ entry, kind: entry.accountId === null ? 'filler' : 'work' })
+                    }
+                    snapshot={snapshot}
+                  />
+                </>
+              )}
             </section>
           )}
-          {view === 'entries' && (
+          {loadState === 'ready' && view === 'entries' && (
             <section className="content-view">
               <div className="entries-heading">
                 <PageHeading eyebrow="TIME LOG" title="Work entries">
                   Checklists are available only inside entry details.
                 </PageHeading>
-                <div className="search">
-                  <ListFilter size={16} />
-                  <Input
-                    onChange={(event) => setFilter(event.target.value)}
-                    placeholder="Search entries"
-                    value={filter}
-                  />
-                </div>
               </div>
+              <div className="filter-panel">
+                <Field label="From">
+                  <Input
+                    onChange={(event) => updateFilter('dateFrom', event.target.value)}
+                    type="date"
+                    value={filters.dateFrom ?? ''}
+                  />
+                </Field>
+                <Field label="To">
+                  <Input
+                    onChange={(event) => updateFilter('dateTo', event.target.value)}
+                    type="date"
+                    value={filters.dateTo ?? ''}
+                  />
+                </Field>
+                <Field label="Customer">
+                  <Select
+                    onChange={(event) => {
+                      updateFilter('customerId', Number(event.target.value) || undefined)
+                      updateFilter('accountId', undefined)
+                    }}
+                    value={filters.customerId ?? ''}
+                  >
+                    <option value="">All customers</option>
+                    {snapshot.customers.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Account">
+                  <Select
+                    onChange={(event) =>
+                      updateFilter('accountId', Number(event.target.value) || undefined)
+                    }
+                    value={filters.accountId ?? ''}
+                  >
+                    <option value="">All accounts</option>
+                    {filteredAccounts.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.code} · {item.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Activity">
+                  <Select
+                    onChange={(event) =>
+                      updateFilter('activityTypeId', Number(event.target.value) || undefined)
+                    }
+                    value={filters.activityTypeId ?? ''}
+                  >
+                    <option value="">All activities</option>
+                    {snapshot.activityTypes.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Description">
+                  <Input
+                    onChange={(event) => updateFilter('description', event.target.value)}
+                    placeholder="Contains text"
+                    value={filters.description ?? ''}
+                  />
+                </Field>
+                <Field label="Ticket">
+                  <Input
+                    onChange={(event) => updateFilter('ticketNumber', event.target.value)}
+                    placeholder="Contains number"
+                    value={filters.ticketNumber ?? ''}
+                  />
+                </Field>
+                <Button
+                  disabled={Object.keys(filters).length === 0}
+                  onClick={() => setFilters({})}
+                  variant="ghost"
+                >
+                  <ListFilter size={15} />
+                  Clear
+                </Button>
+              </div>
+              <p className="result-count">
+                {shownEntries.length} {shownEntries.length === 1 ? 'entry' : 'entries'}
+              </p>
               <EntryTable
                 entries={[...shownEntries].reverse()}
                 onEdit={(entry) =>
@@ -1235,14 +1445,17 @@ function Workspace({
               />
             </section>
           )}
-          {(['customers', 'accounts', 'activities', 'checklists'] as View[]).includes(view) && (
-            <Management
-              reload={reload}
-              snapshot={snapshot}
-              type={view as 'accounts' | 'activities' | 'checklists' | 'customers'}
-            />
+          {loadState === 'ready' &&
+            (['customers', 'accounts', 'activities', 'checklists'] as View[]).includes(view) && (
+              <Management
+                reload={reload}
+                snapshot={snapshot}
+                type={view as 'accounts' | 'activities' | 'checklists' | 'customers'}
+              />
+            )}
+          {loadState === 'ready' && view === 'settings' && (
+            <SettingsView dark={dark} setDark={setDark} />
           )}
-          {view === 'settings' && <SettingsView dark={dark} setDark={setDark} />}
         </div>
       </main>
       {editor && (

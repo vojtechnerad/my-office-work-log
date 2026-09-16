@@ -11,6 +11,14 @@ export const IPC_CHANNELS = {
     locate: 'database:locate',
     remove: 'database:remove'
   },
+  workspace: {
+    get: 'workspace:get',
+    saveEntry: 'workspace:save-entry',
+    deleteEntry: 'workspace:delete-entry',
+    setDayStatus: 'workspace:set-day-status',
+    setChecklistValue: 'workspace:set-checklist-value',
+    mutateReference: 'workspace:mutate-reference'
+  },
   settings: {
     get: 'settings:get',
     update: 'settings:update'
@@ -46,6 +54,123 @@ export interface DatabaseRegistry {
   selectedFilePath: string | undefined
 }
 
+export interface WorkspaceCustomer {
+  color: string | null
+  id: number
+  isActive: boolean
+  name: string
+}
+
+export interface WorkspaceAccount {
+  activeFrom: string
+  activeUntil: string | null
+  code: string
+  customerId: number
+  id: number
+  isActive: boolean
+  name: string
+}
+
+export interface WorkspaceActivityType {
+  category: 'filler' | 'work'
+  color: string
+  id: number
+  isActive: boolean
+  name: string
+  sortOrder: number
+}
+
+export interface WorkspaceChecklistDefinition {
+  customerId: number
+  id: number
+  isActive: boolean
+  name: string
+  sortOrder: number
+}
+
+export interface WorkspaceChecklistValue {
+  checklistDefinitionId: number
+  isChecked: boolean
+}
+
+export interface WorkspaceEntry {
+  accountId: number | null
+  activityTypeId: number | null
+  checklistValues: WorkspaceChecklistValue[]
+  date: string
+  description: string | null
+  endTime: string
+  id: number
+  startTime: string
+  ticketNumber: string | null
+  workDayId: number
+}
+
+export interface WorkspaceDay {
+  date: string
+  id: number
+  status: 'confirmed' | 'draft'
+}
+
+export interface WorkspaceSnapshot {
+  accounts: WorkspaceAccount[]
+  activityTypes: WorkspaceActivityType[]
+  checklistDefinitions: WorkspaceChecklistDefinition[]
+  customers: WorkspaceCustomer[]
+  days: WorkspaceDay[]
+  entries: WorkspaceEntry[]
+}
+
+export interface SaveEntryRequest {
+  accountId: number | null
+  activityTypeId: number | null
+  date: string
+  description: string | null
+  endTime: string
+  id?: number
+  startTime: string
+  ticketNumber: string | null
+}
+
+export type ReferenceMutation =
+  | { action: 'create'; entity: 'customer'; value: { color: string | null; name: string } }
+  | {
+      action: 'update'
+      entity: 'customer'
+      id: number
+      value: { color: string | null; name: string }
+    }
+  | { action: 'create'; entity: 'account'; value: Omit<WorkspaceAccount, 'id' | 'isActive'> }
+  | {
+      action: 'update'
+      entity: 'account'
+      id: number
+      value: Omit<WorkspaceAccount, 'id' | 'isActive'>
+    }
+  | { action: 'create'; entity: 'activity'; value: Omit<WorkspaceActivityType, 'id' | 'isActive'> }
+  | {
+      action: 'update'
+      entity: 'activity'
+      id: number
+      value: Omit<WorkspaceActivityType, 'id' | 'isActive'>
+    }
+  | {
+      action: 'create'
+      entity: 'checklist'
+      value: Omit<WorkspaceChecklistDefinition, 'id' | 'isActive'>
+    }
+  | {
+      action: 'update'
+      entity: 'checklist'
+      id: number
+      value: { name: string; sortOrder: number }
+    }
+  | {
+      action: 'deactivate' | 'delete'
+      entity: 'customer' | 'account' | 'activity' | 'checklist'
+      id: number
+    }
+
 export interface IpcContract {
   [IPC_CHANNELS.app.health]: {
     request: undefined
@@ -77,6 +202,30 @@ export interface IpcContract {
   }
   [IPC_CHANNELS.database.remove]: {
     request: { filePath: string }
+    response: undefined
+  }
+  [IPC_CHANNELS.workspace.get]: {
+    request: undefined
+    response: WorkspaceSnapshot
+  }
+  [IPC_CHANNELS.workspace.saveEntry]: {
+    request: SaveEntryRequest
+    response: undefined
+  }
+  [IPC_CHANNELS.workspace.deleteEntry]: {
+    request: { id: number }
+    response: undefined
+  }
+  [IPC_CHANNELS.workspace.setDayStatus]: {
+    request: { date: string; status: 'confirmed' | 'draft' }
+    response: undefined
+  }
+  [IPC_CHANNELS.workspace.setChecklistValue]: {
+    request: { checklistDefinitionId: number; isChecked: boolean; workEntryId: number }
+    response: undefined
+  }
+  [IPC_CHANNELS.workspace.mutateReference]: {
+    request: ReferenceMutation
     response: undefined
   }
   [IPC_CHANNELS.settings.get]: {
@@ -118,4 +267,16 @@ export interface MowlApi {
     remove: (request: IpcContract[typeof IPC_CHANNELS.database.remove]['request']) => Promise<void>
   }
   health: () => Promise<HealthCheck>
+  workspace: {
+    deleteEntry: (request: { id: number }) => Promise<void>
+    get: () => Promise<WorkspaceSnapshot>
+    mutateReference: (request: ReferenceMutation) => Promise<void>
+    saveEntry: (request: SaveEntryRequest) => Promise<void>
+    setChecklistValue: (request: {
+      checklistDefinitionId: number
+      isChecked: boolean
+      workEntryId: number
+    }) => Promise<void>
+    setDayStatus: (request: { date: string; status: 'confirmed' | 'draft' }) => Promise<void>
+  }
 }

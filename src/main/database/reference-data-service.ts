@@ -4,6 +4,9 @@ import { accounts, activityTypes, customers, workEntries } from './schema'
 
 type MowlDatabase = BetterSQLite3Database<typeof import('./schema')>
 type ActivityCategory = 'filler' | 'work'
+type Customer = typeof customers.$inferSelect
+type Account = typeof accounts.$inferSelect
+type ActivityType = typeof activityTypes.$inferSelect
 
 export interface CustomerInput {
   color?: string | null
@@ -34,7 +37,7 @@ export class ReferenceDataError extends Error {
 export class ReferenceDataService {
   constructor(private readonly database: MowlDatabase) {}
 
-  listCustomers(activeOnly = false) {
+  listCustomers(activeOnly = false): Customer[] {
     return this.database
       .select()
       .from(customers)
@@ -43,7 +46,7 @@ export class ReferenceDataService {
       .all()
   }
 
-  createCustomer(input: CustomerInput) {
+  createCustomer(input: CustomerInput): Customer {
     const now = new Date().toISOString()
     const result = this.database
       .insert(customers)
@@ -52,7 +55,7 @@ export class ReferenceDataService {
     return this.customerById(Number(result.lastInsertRowid))
   }
 
-  updateCustomer(id: number, input: CustomerInput) {
+  updateCustomer(id: number, input: CustomerInput): Customer {
     this.assertCustomerExists(id)
     this.database
       .update(customers)
@@ -62,7 +65,7 @@ export class ReferenceDataService {
     return this.customerById(id)
   }
 
-  deactivateCustomer(id: number) {
+  deactivateCustomer(id: number): Customer {
     this.assertCustomerExists(id)
     this.database
       .update(customers)
@@ -80,7 +83,7 @@ export class ReferenceDataService {
     this.database.delete(customers).where(eq(customers.id, id)).run()
   }
 
-  listAccounts(customerId?: number, activeOnly = false) {
+  listAccounts(customerId?: number, activeOnly = false): Account[] {
     const conditions = [
       customerId === undefined ? undefined : eq(accounts.customerId, customerId),
       activeOnly ? eq(accounts.isActive, true) : undefined
@@ -93,7 +96,7 @@ export class ReferenceDataService {
       .all()
   }
 
-  createAccount(input: AccountInput) {
+  createAccount(input: AccountInput): Account {
     const now = new Date().toISOString()
     const result = this.database
       .insert(accounts)
@@ -102,7 +105,7 @@ export class ReferenceDataService {
     return this.accountById(Number(result.lastInsertRowid))
   }
 
-  updateAccount(id: number, input: AccountInput) {
+  updateAccount(id: number, input: AccountInput): Account {
     this.assertAccountExists(id)
     this.database
       .update(accounts)
@@ -116,7 +119,7 @@ export class ReferenceDataService {
     return this.accountById(id)
   }
 
-  deactivateAccount(id: number) {
+  deactivateAccount(id: number): Account {
     this.assertAccountExists(id)
     this.database
       .update(accounts)
@@ -134,7 +137,7 @@ export class ReferenceDataService {
     this.database.delete(accounts).where(eq(accounts.id, id)).run()
   }
 
-  listActivityTypes(category: ActivityCategory, activeOnly = false) {
+  listActivityTypes(category: ActivityCategory, activeOnly = false): ActivityType[] {
     return this.database
       .select()
       .from(activityTypes)
@@ -148,7 +151,7 @@ export class ReferenceDataService {
       .all()
   }
 
-  createActivityType(category: ActivityCategory, input: ActivityTypeInput) {
+  createActivityType(category: ActivityCategory, input: ActivityTypeInput): ActivityType {
     const now = new Date().toISOString()
     const result = this.database
       .insert(activityTypes)
@@ -157,7 +160,7 @@ export class ReferenceDataService {
     return this.activityTypeById(Number(result.lastInsertRowid))
   }
 
-  updateActivityType(id: number, input: ActivityTypeInput) {
+  updateActivityType(id: number, input: ActivityTypeInput): ActivityType {
     this.assertActivityTypeExists(id)
     this.database
       .update(activityTypes)
@@ -167,7 +170,7 @@ export class ReferenceDataService {
     return this.activityTypeById(id)
   }
 
-  deactivateActivityType(id: number) {
+  deactivateActivityType(id: number): ActivityType {
     this.assertActivityTypeExists(id)
     this.database
       .update(activityTypes)
@@ -185,19 +188,19 @@ export class ReferenceDataService {
     this.database.delete(activityTypes).where(eq(activityTypes.id, id)).run()
   }
 
-  private customerById(id: number) {
+  private customerById(id: number): Customer {
     const customer = this.database.select().from(customers).where(eq(customers.id, id)).get()
     if (!customer) throw new ReferenceDataError('reference-item-not-found')
     return customer
   }
 
-  private accountById(id: number) {
+  private accountById(id: number): Account {
     const account = this.database.select().from(accounts).where(eq(accounts.id, id)).get()
     if (!account) throw new ReferenceDataError('reference-item-not-found')
     return account
   }
 
-  private activityTypeById(id: number) {
+  private activityTypeById(id: number): ActivityType {
     const activityType = this.database
       .select()
       .from(activityTypes)

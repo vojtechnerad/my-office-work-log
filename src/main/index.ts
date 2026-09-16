@@ -11,6 +11,7 @@ import {
   getDefaultDatabaseDirectory
 } from './database/registry'
 import { IPC_CHANNELS, type HealthCheck, type IpcContract } from '../shared/ipc'
+import { registerWorkspaceIpc } from './workspace-ipc'
 
 let activeDatabase: DatabaseConnection | undefined
 let databaseRegistry: DatabaseRegistryStore | undefined
@@ -94,6 +95,7 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle(IPC_CHANNELS.app.health, (): HealthCheck => ({ status: 'ok' }))
+  registerWorkspaceIpc(() => activeDatabase?.database)
   ipcMain.handle(
     IPC_CHANNELS.database.create,
     (_, request: IpcContract[typeof IPC_CHANNELS.database.create]['request']) => {

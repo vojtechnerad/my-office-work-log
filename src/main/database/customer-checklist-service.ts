@@ -8,6 +8,8 @@ import {
 } from './schema'
 
 type MowlDatabase = BetterSQLite3Database<typeof import('./schema')>
+type ChecklistDefinition = typeof customerChecklistDefinitions.$inferSelect
+type EntryChecklistItem = ChecklistDefinition & { isChecked: boolean }
 
 export interface ChecklistDefinitionInput {
   name: string
@@ -31,7 +33,7 @@ export class CustomerChecklistError extends Error {
 export class CustomerChecklistService {
   constructor(private readonly database: MowlDatabase) {}
 
-  createDefinition(customerId: number, input: ChecklistDefinitionInput) {
+  createDefinition(customerId: number, input: ChecklistDefinitionInput): ChecklistDefinition {
     const now = new Date().toISOString()
     const result = this.database
       .insert(customerChecklistDefinitions)
@@ -40,7 +42,7 @@ export class CustomerChecklistService {
     return this.definitionById(Number(result.lastInsertRowid))
   }
 
-  listDefinitions(customerId: number, activeOnly = false) {
+  listDefinitions(customerId: number, activeOnly = false): ChecklistDefinition[] {
     return this.database
       .select()
       .from(customerChecklistDefinitions)
@@ -54,7 +56,7 @@ export class CustomerChecklistService {
       .all()
   }
 
-  renameDefinition(id: number, name: string) {
+  renameDefinition(id: number, name: string): ChecklistDefinition {
     this.definitionById(id)
     this.database
       .update(customerChecklistDefinitions)
@@ -64,7 +66,7 @@ export class CustomerChecklistService {
     return this.definitionById(id)
   }
 
-  deactivateDefinition(id: number) {
+  deactivateDefinition(id: number): ChecklistDefinition {
     this.definitionById(id)
     this.database
       .update(customerChecklistDefinitions)
@@ -101,7 +103,7 @@ export class CustomerChecklistService {
       .run()
   }
 
-  listItemsForEntry(workEntryId: number) {
+  listItemsForEntry(workEntryId: number): EntryChecklistItem[] {
     const entry = this.database
       .select({ accountId: workEntries.accountId })
       .from(workEntries)
@@ -171,7 +173,7 @@ export class CustomerChecklistService {
       .run()
   }
 
-  private definitionById(id: number) {
+  private definitionById(id: number): ChecklistDefinition {
     const definition = this.database
       .select()
       .from(customerChecklistDefinitions)

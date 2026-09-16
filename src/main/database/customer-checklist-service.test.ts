@@ -11,7 +11,11 @@ const migrationsFolder = resolve(process.cwd(), 'resources/migrations')
 const temporaryDirectories: string[] = []
 const closeConnections: Array<() => void> = []
 
-function createServices() {
+function createServices(): {
+  checklist: CustomerChecklistService
+  database: ReturnType<typeof createDatabase>['database']
+  referenceData: ReferenceDataService
+} {
   const directory = mkdtempSync(join(tmpdir(), 'mowl-customer-checklist-'))
   temporaryDirectories.push(directory)
   const connection = createDatabase({

@@ -14,6 +14,10 @@ export function createI18n(language: AppLanguage): I18n {
   return i18n
 }
 
-export function translate(language: AppLanguage, key: MessageKey, values?: Record<string, unknown>): string {
+export function translate(
+  language: AppLanguage,
+  key: MessageKey,
+  values?: Record<string, unknown>
+): string {
   return createI18n(language)._(key, values)
 }

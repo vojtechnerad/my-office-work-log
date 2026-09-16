@@ -20,7 +20,8 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
     "db:generate": "drizzle-kit generate",
-    "test:database": "vitest run src/main/database"
+    "test:database": "vitest run src/main/database",
+    "test:domain": "vitest run src/main/domain"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

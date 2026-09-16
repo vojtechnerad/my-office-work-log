@@ -2,7 +2,16 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { IPC_CHANNELS, type HealthCheck } from '../shared/ipc'
+import { createDatabase, openDatabase, type DatabaseConnection } from './database'
+import { IPC_CHANNELS, type HealthCheck, type IpcContract } from '../shared/ipc'
+
+let activeDatabase: DatabaseConnection | undefined
+
+function getMigrationsFolder(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'migrations')
+    : join(app.getAppPath(), 'resources', 'migrations')
+}
 
 function createWindow(): void {
   // Create the browser window.
@@ -54,6 +63,26 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle(IPC_CHANNELS.app.health, (): HealthCheck => ({ status: 'ok' }))
+  ipcMain.handle(
+    IPC_CHANNELS.database.create,
+    (_, request: IpcContract[typeof IPC_CHANNELS.database.create]['request']) => {
+      activeDatabase?.close()
+      activeDatabase = createDatabase({ ...request, migrationsFolder: getMigrationsFolder() })
+      return activeDatabase.metadata
+    }
+  )
+  ipcMain.handle(
+    IPC_CHANNELS.database.open,
+    (_, request: IpcContract[typeof IPC_CHANNELS.database.open]['request']) => {
+      activeDatabase?.close()
+      activeDatabase = openDatabase({ ...request, migrationsFolder: getMigrationsFolder() })
+      return activeDatabase.metadata
+    }
+  )
+  ipcMain.handle(IPC_CHANNELS.database.close, () => {
+    activeDatabase?.close()
+    activeDatabase = undefined
+  })
 
   createWindow()
 
@@ -68,6 +97,9 @@ app.whenReady().then(() => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
+  activeDatabase?.close()
+  activeDatabase = undefined
+
   if (process.platform !== 'darwin') {
     app.quit()
   }

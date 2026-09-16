@@ -24,6 +24,13 @@ export interface HealthCheck {
   status: 'ok'
 }
 
+export interface DatabaseMetadata {
+  createdAt: string
+  description: string
+  displayName: string
+  updatedAt: string
+}
+
 export interface IpcContract {
   [IPC_CHANNELS.app.health]: {
     request: undefined
@@ -31,11 +38,11 @@ export interface IpcContract {
   }
   [IPC_CHANNELS.database.create]: {
     request: { filePath: string; displayName: string; description: string }
-    response: never
+    response: DatabaseMetadata
   }
   [IPC_CHANNELS.database.open]: {
     request: { filePath: string }
-    response: never
+    response: DatabaseMetadata
   }
   [IPC_CHANNELS.database.close]: {
     request: undefined
@@ -64,5 +71,14 @@ export interface IpcContract {
 }
 
 export interface MowlApi {
+  database: {
+    close: () => Promise<void>
+    create: (
+      request: IpcContract[typeof IPC_CHANNELS.database.create]['request']
+    ) => Promise<DatabaseMetadata>
+    open: (
+      request: IpcContract[typeof IPC_CHANNELS.database.open]['request']
+    ) => Promise<DatabaseMetadata>
+  }
   health: () => Promise<HealthCheck>
 }

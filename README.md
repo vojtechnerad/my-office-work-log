@@ -32,3 +32,19 @@ $ npm run build:mac
 # For Linux
 $ npm run build:linux
 ```
+
+### Validation
+
+Run the complete automated validation suite:
+
+```bash
+$ npm run validate
+```
+
+### Portable Windows File Association Smoke Test
+
+Build `dist/MOWL-<version>-portable.exe` with `npm run build:win`, then run it once. The packaged
+application registers the per-user `.mowldb` association. Double-click a valid `.mowldb` file to
+verify that MOWL opens it; double-clicking a file while MOWL is already running focuses the existing
+window and switches to that database. Missing or invalid files keep the current workspace open and
+display an error.

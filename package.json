@@ -20,8 +20,10 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
     "db:generate": "drizzle-kit generate",
+    "test": "vitest run",
     "test:database": "vitest run src/main/database",
-    "test:domain": "vitest run src/main/domain"
+    "test:domain": "vitest run src/main/domain",
+    "validate": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -43,6 +45,8 @@
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
@@ -56,6 +60,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
+    "jsdom": "^29.1.1",
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

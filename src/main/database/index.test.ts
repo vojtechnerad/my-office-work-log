@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from 'fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import Database from 'better-sqlite3'
@@ -99,5 +99,22 @@ describe('MOWL database initialization', () => {
     const opened = openDatabase({ filePath, migrationsFolder })
     expect(opened.metadata).toEqual(created.metadata)
     opened.close()
+  })
+
+  it('rejects missing files, invalid extensions, and uninitialized database files', () => {
+    const missingPath = createTemporaryPath()
+    expect(() => openDatabase({ filePath: missingPath, migrationsFolder })).toThrow(
+      'does not exist'
+    )
+
+    expect(() =>
+      openDatabase({ filePath: missingPath.replace('.mowldb', '.sqlite'), migrationsFolder })
+    ).toThrow('.mowldb extension')
+
+    const invalidPath = createTemporaryPath()
+    writeFileSync(invalidPath, '')
+    expect(() => openDatabase({ filePath: invalidPath, migrationsFolder })).toThrow(
+      'not an initialized MOWL database'
+    )
   })
 })

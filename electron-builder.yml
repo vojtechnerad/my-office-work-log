@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: mowl
+appId: com.mowl.app
+productName: MOWL
 directories:
   buildResources: build
 files:

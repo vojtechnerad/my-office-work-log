@@ -6,6 +6,7 @@ import { X } from 'lucide-react'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react'
 import { twMerge } from 'tailwind-merge'
 import { clsx, type ClassValue } from 'clsx'
+import { useT } from '../i18n'
 
 function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
@@ -98,6 +99,7 @@ export function Dialog({
   open: boolean
   title: string
 }): React.JSX.Element {
+  const t = useT()
   return (
     <DialogPrimitive.Root onOpenChange={onOpenChange} open={open}>
       <DialogPrimitive.Portal>
@@ -113,7 +115,7 @@ export function Dialog({
               )}
             </div>
             <DialogPrimitive.Close asChild>
-              <Button aria-label="Close" size="icon" variant="ghost">
+              <Button aria-label={t('common.close')} size="icon" variant="ghost">
                 <X size={18} />
               </Button>
             </DialogPrimitive.Close>

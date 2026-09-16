@@ -1,13 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { dirname } from 'path'
 import type { ReminderIntervalMinutes, ReminderSettings } from '../shared/ipc'
+import { translate } from '../shared/localization'
 
 const supportedIntervals: ReminderIntervalMinutes[] = [15, 30, 60, 120]
 
 export const defaultReminderSettings: ReminderSettings = {
   enabled: false,
   intervalMinutes: 30,
-  language: 'en'
+  language: 'cs'
 }
 
 export interface ReminderSettingsStore {
@@ -58,9 +59,10 @@ export function normalizeSettings(settings: Partial<ReminderSettings>): Reminder
 }
 
 export function reminderNotification(language: ReminderSettings['language']): ReminderNotification {
-  return language === 'cs'
-    ? { body: 'Zaznamenejte prosim odpracovany cas.', title: 'Pripomenuti MOWL' }
-    : { body: 'Remember to record your work time.', title: 'MOWL reminder' }
+  return {
+    body: translate(language, 'notification.body'),
+    title: translate(language, 'notification.title')
+  }
 }
 
 export class ReminderService {

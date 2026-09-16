@@ -62,8 +62,19 @@ describe('work-hour reminders', () => {
     expect(store.saved).toEqual([{ enabled: true, intervalMinutes: 15, language: 'cs' }])
     expect(timer.intervals).toEqual([900000])
     expect(notifications).toEqual([
-      { body: 'Zaznamenejte prosim odpracovany cas.', title: 'Pripomenuti MOWL' }
+      { body: 'Nezapomente zaznamenat odpracovany cas.', title: 'Pripomenuti MOWL' }
     ])
+  })
+
+  it('restores the selected language from persisted settings', () => {
+    const store = new MemoryStore()
+    const service = new ReminderService(store, new FakeTimer(), () => undefined)
+
+    service.update({ language: 'en' })
+    const restartedService = new ReminderService(store, new FakeTimer(), () => undefined)
+    restartedService.start()
+
+    expect(restartedService.getSettings().language).toBe('en')
   })
 
   it('reschedules when the interval changes and stops notifications when disabled', () => {

@@ -48,6 +48,7 @@ import {
   Switch,
   Textarea
 } from './components/ui'
+import { activateLanguage, useT, type Translate } from './i18n'
 
 type View =
   'dashboard' | 'entries' | 'customers' | 'accounts' | 'activities' | 'checklists' | 'settings'
@@ -64,7 +65,19 @@ const today = (): string => new Date().toISOString().slice(0, 10)
 const formatDuration = (minutes: number): string =>
   `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
 
+function localizedError(error: unknown, translate: Translate): string {
+  const code = error instanceof Error ? error.message : ''
+  const messages: Record<string, Parameters<Translate>[0]> = {
+    'database-not-open': 'error.databaseNotOpen',
+    'work-day-confirmed-locked': 'error.workDayConfirmed',
+    'work-day-empty': 'error.workDayEmpty',
+    'work-day-overlaps': 'error.workDayOverlaps'
+  }
+  return translate(messages[code] ?? 'error.generic')
+}
+
 function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): React.JSX.Element {
+  const t = useT()
   const [databases, setDatabases] = useState<DatabaseFile[]>([])
   const [createOpen, setCreateOpen] = useState(false)
   const [error, setError] = useState('')
@@ -73,14 +86,14 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
     void window.mowl.database
       .list()
       .then((registry) => setDatabases(registry.databases))
-      .catch((caught) => setError(String(caught)))
+      .catch((caught) => setError(localizedError(caught, t)))
       .finally(() => setLoading(false))
   }, [])
   async function open(database: DatabaseFile): Promise<void> {
     try {
       onOpen(await window.mowl.database.open({ filePath: database.filePath }))
     } catch (caught) {
-      setError(String(caught))
+      setError(localizedError(caught, t))
     }
   }
   async function create(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -95,7 +108,7 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
         })
       )
     } catch (caught) {
-      setError(String(caught))
+      setError(localizedError(caught, t))
     }
   }
   async function locate(item: DatabaseFile): Promise<void> {
@@ -103,7 +116,7 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
       const metadata = await window.mowl.database.locate({ missingFilePath: item.filePath })
       if (metadata) onOpen(metadata)
     } catch (caught) {
-      setError(String(caught))
+      setError(localizedError(caught, t))
     }
   }
   async function remove(item: DatabaseFile): Promise<void> {
@@ -115,15 +128,15 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
       <section className="startup-panel">
         <Brand />
         <div className="startup-heading">
-          <p className="eyebrow">LOCAL WORKSPACE</p>
-          <h1>Choose your work log</h1>
-          <p>Open a local database or create a fresh workspace.</p>
+          <p className="eyebrow">{t('database.workspace')}</p>
+          <h1>{t('database.startTitle')}</h1>
+          <p>{t('database.startDetail')}</p>
         </div>
         {error && <div className="notice error">{error}</div>}
         <div className="database-list">
-          {loading && <p className="empty-state">Loading databases...</p>}
+          {loading && <p className="empty-state">{t('database.loading')}</p>}
           {!loading && databases.length === 0 && (
-            <p className="empty-state">No databases yet. Create your first work log.</p>
+            <p className="empty-state">{t('database.empty')}</p>
           )}
           {databases.map((item) => (
             <div className={`database-row ${item.status}`} key={item.filePath}>
@@ -134,10 +147,12 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
                 <strong>{item.displayName}</strong>
                 <small>{item.description || item.filePath}</small>
               </span>
-              <Badge tone={item.status === 'available' ? 'green' : 'red'}>{item.status}</Badge>
+              <Badge tone={item.status === 'available' ? 'green' : 'red'}>
+                {t(`database.status.${item.status}`)}
+              </Badge>
               {item.status === 'available' ? (
                 <Button
-                  aria-label={`Open ${item.displayName}`}
+                  aria-label={t('database.open', { name: item.displayName })}
                   onClick={() => void open(item)}
                   size="icon"
                   variant="ghost"
@@ -147,10 +162,10 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
               ) : (
                 <span className="database-actions">
                   <Button onClick={() => void locate(item)} size="sm" variant="outline">
-                    Locate
+                    {t('database.locate')}
                   </Button>
                   <Button
-                    aria-label="Remove unavailable database"
+                    aria-label={t('database.remove')}
                     onClick={() => void remove(item)}
                     size="icon"
                     variant="ghost"
@@ -164,27 +179,27 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <FilePlus2 size={16} />
-          New database
+          {t('database.new')}
         </Button>
       </section>
       <Dialog
         onOpenChange={setCreateOpen}
         open={createOpen}
-        title="Create database"
-        description="Create a portable local .mowldb file."
+        title={t('database.create')}
+        description={t('database.createDetail')}
       >
         <form className="form-stack" onSubmit={(event) => void create(event)}>
-          <Field label="Name">
+          <Field label={t('common.name')}>
             <Input autoFocus name="name" required />
           </Field>
-          <Field label="Description">
+          <Field label={t('common.description')}>
             <Textarea name="description" />
           </Field>
-          <Field label="File name">
-            <Input name="fileName" placeholder="work-log.mowldb" />
+          <Field label={t('database.fileName')}>
+            <Input name="fileName" placeholder={t('database.fileNamePlaceholder')} />
           </Field>
           <div className="dialog-actions">
-            <Button type="submit">Create</Button>
+            <Button type="submit">{t('common.create')}</Button>
           </div>
         </form>
       </Dialog>
@@ -193,20 +208,22 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
 }
 
 function Brand({ compact = false }: { compact?: boolean }): React.JSX.Element {
+  const t = useT()
   return (
     <div className={`brand ${compact ? 'compact' : ''}`}>
       <span className="brand-mark">M</span>
       <div>
         <strong>MOWL</strong>
-        <small>My Office Work Log</small>
+        <small>{t('app.subtitle')}</small>
       </div>
     </div>
   )
 }
 function Status({ status }: { status: 'confirmed' | 'draft' }): React.JSX.Element {
+  const t = useT()
   return (
     <Badge tone={status === 'confirmed' ? 'green' : 'neutral'}>
-      {status === 'confirmed' ? 'Confirmed' : 'Draft'}
+      {status === 'confirmed' ? t('common.confirmed') : t('day.draft')}
     </Badge>
   )
 }
@@ -242,17 +259,18 @@ function EntryTable({
   onEdit: (entry: WorkspaceEntry) => void
   snapshot: WorkspaceSnapshot
 }): React.JSX.Element {
+  const t = useT()
   return (
     <div className="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Time</th>
-            <th>Customer / account</th>
-            <th>Activity</th>
-            <th>Ticket</th>
-            <th>Description</th>
+            <th>{t('common.date')}</th>
+            <th>{t('common.time')}</th>
+            <th>{t('entry.table.account')}</th>
+            <th>{t('common.activity')}</th>
+            <th>{t('common.ticket')}</th>
+            <th>{t('common.description')}</th>
             <th />
           </tr>
         </thead>
@@ -260,7 +278,7 @@ function EntryTable({
           {entries.length === 0 && (
             <tr>
               <td className="table-empty" colSpan={7}>
-                No entries to show.
+                {t('entry.empty')}
               </td>
             </tr>
           )}
@@ -277,7 +295,7 @@ function EntryTable({
                 <td>
                   <span className="color-label">
                     <i style={{ background: customer?.color ?? '#8a8a8a' }} />
-                    {account ? `${customer?.name} / ${account.code}` : 'Filler'}
+                    {account ? `${customer?.name} / ${account.code}` : t('common.filler')}
                   </span>
                 </td>
                 <td>
@@ -290,7 +308,7 @@ function EntryTable({
                 <td className="description-cell">{entry.description || '—'}</td>
                 <td>
                   <Button
-                    aria-label="Edit"
+                    aria-label={t('common.edit')}
                     onClick={() => onEdit(entry)}
                     size="icon"
                     variant="ghost"
@@ -320,6 +338,7 @@ function EntryEditor({
   reload: () => Promise<void>
   snapshot: WorkspaceSnapshot
 }): React.JSX.Element {
+  const t = useT()
   const [form, setForm] = useState<SaveEntryRequest>({
     id: entry?.id,
     accountId: entry?.accountId ?? null,
@@ -355,7 +374,7 @@ function EntryEditor({
       await reload()
       onClose()
     } catch (caught) {
-      setError(String(caught))
+      setError(localizedError(caught, t))
     }
   }
   async function check(id: number, isChecked: boolean): Promise<void> {
@@ -368,7 +387,7 @@ function EntryEditor({
     await reload()
   }
   async function remove(): Promise<void> {
-    if (!entry || !window.confirm('Permanently delete this entry?')) return
+    if (!entry || !window.confirm(t('editor.deleteConfirm'))) return
     await window.mowl.workspace.deleteEntry({ id: entry.id })
     await reload()
     onClose()
@@ -377,13 +396,13 @@ function EntryEditor({
     <Dialog
       onOpenChange={(open) => !open && onClose()}
       open
-      title={entry ? 'Edit entry' : kind === 'work' ? 'New work entry' : 'New filler entry'}
-      description={locked ? 'Date and time are locked for this confirmed day.' : undefined}
+      title={entry ? t('editor.edit') : kind === 'work' ? t('editor.newWork') : t('editor.newFiller')}
+      description={locked ? t('editor.locked') : undefined}
     >
       <form className="editor-form" onSubmit={(event) => void save(event)}>
         {error && <div className="notice error">{error}</div>}
         <div className="form-grid three">
-          <Field label="Date">
+          <Field label={t('common.date')}>
             <Input
               disabled={locked}
               onChange={(event) => update('date', event.target.value)}
@@ -392,7 +411,7 @@ function EntryEditor({
               value={form.date}
             />
           </Field>
-          <Field label="Start">
+          <Field label={t('common.start')}>
             <Input
               disabled={locked}
               onChange={(event) => update('startTime', event.target.value)}
@@ -401,7 +420,7 @@ function EntryEditor({
               value={form.startTime}
             />
           </Field>
-          <Field label="End">
+          <Field label={t('common.end')}>
             <Input
               disabled={locked}
               onChange={(event) => update('endTime', event.target.value)}
@@ -413,13 +432,13 @@ function EntryEditor({
         </div>
         {kind === 'work' ? (
           <div className="form-grid two">
-            <Field label="Account">
+            <Field label={t('common.account')}>
               <Select
                 onChange={(event) => update('accountId', Number(event.target.value) || null)}
                 required
                 value={form.accountId ?? ''}
               >
-                <option value="">Select</option>
+                <option value="">{t('common.select')}</option>
                 {snapshot.accounts
                   .filter((item) => item.isActive || item.id === entry?.accountId)
                   .map((item) => (
@@ -429,12 +448,12 @@ function EntryEditor({
                   ))}
               </Select>
             </Field>
-            <Field label="Activity">
+            <Field label={t('common.activity')}>
               <Select
                 onChange={(event) => update('activityTypeId', Number(event.target.value) || null)}
                 value={form.activityTypeId ?? ''}
               >
-                <option value="">None</option>
+                <option value="">{t('common.none')}</option>
                 {snapshot.activityTypes
                   .filter(
                     (item) =>
@@ -450,13 +469,13 @@ function EntryEditor({
             </Field>
           </div>
         ) : (
-          <Field label="Filler activity">
+          <Field label={t('editor.fillerActivity')}>
             <Select
               onChange={(event) => update('activityTypeId', Number(event.target.value) || null)}
               required
               value={form.activityTypeId ?? ''}
             >
-              <option value="">Select</option>
+              <option value="">{t('common.select')}</option>
               {snapshot.activityTypes
                 .filter((item) => item.category === 'filler' && item.isActive)
                 .map((item) => (
@@ -468,14 +487,14 @@ function EntryEditor({
           </Field>
         )}
         {kind === 'work' && (
-          <Field label="Ticket">
+          <Field label={t('common.ticket')}>
             <Input
               onChange={(event) => update('ticketNumber', event.target.value)}
               value={form.ticketNumber ?? ''}
             />
           </Field>
         )}
-        <Field label="Description">
+        <Field label={t('common.description')}>
           <Textarea
             onChange={(event) => update('description', event.target.value)}
             value={form.description ?? ''}
@@ -483,7 +502,7 @@ function EntryEditor({
         </Field>
         {entry && kind === 'work' && definitions.length > 0 && (
           <section className="checklist-editor">
-            <h3>Customer checklist</h3>
+            <h3>{t('checklist.customer')}</h3>
             {definitions.map((definition) => {
               const checked = entry.checklistValues.some(
                 (value) => value.checklistDefinitionId === definition.id && value.isChecked
@@ -496,7 +515,7 @@ function EntryEditor({
                     type="checkbox"
                   />
                   <span>{definition.name}</span>
-                  {!definition.isActive && <Badge>Archived</Badge>}
+                  {!definition.isActive && <Badge>{t('checklist.archived')}</Badge>}
                 </Label>
               )
             })}
@@ -511,10 +530,10 @@ function EntryEditor({
               variant="destructive"
             >
               <Trash2 size={15} />
-              Delete
+              {t('common.delete')}
             </Button>
           )}
-          <Button type="submit">Save entry</Button>
+          <Button type="submit">{t('editor.save')}</Button>
         </div>
       </form>
     </Dialog>
@@ -530,30 +549,31 @@ function RowActions({
   id: number
   reload: () => Promise<void>
 }): React.JSX.Element {
+  const t = useT()
   async function run(action: 'deactivate' | 'delete'): Promise<void> {
     try {
       await window.mowl.workspace.mutateReference({ action, entity, id })
       await reload()
     } catch (caught) {
-      window.alert(String(caught))
+      window.alert(localizedError(caught, t))
     }
   }
   return (
     <span className="row-actions">
       <Button
-        aria-label="Deactivate"
+        aria-label={t('common.deactivate')}
         onClick={() => void run('deactivate')}
         size="icon"
-        title="Deactivate"
+        title={t('common.deactivate')}
         variant="ghost"
       >
         <RotateCcw size={15} />
       </Button>
       <Button
-        aria-label="Delete"
+        aria-label={t('common.delete')}
         onClick={() => void run('delete')}
         size="icon"
-        title="Delete"
+        title={t('common.delete')}
         variant="ghost"
       >
         <Trash2 size={15} />
@@ -575,6 +595,7 @@ function ManagementRow({
   meta: string
   name: ReactNode
 }): React.JSX.Element {
+  const t = useT()
   return (
     <div className="management-row">
       <span className="management-symbol" style={{ background: color ?? undefined }}>
@@ -584,7 +605,7 @@ function ManagementRow({
         <strong>{name}</strong>
         <small>{meta}</small>
       </div>
-      {!active && <Badge>Inactive</Badge>}
+      {!active && <Badge>{t('common.inactive')}</Badge>}
       {children}
     </div>
   )
@@ -596,6 +617,7 @@ function AddForm({
   children: ReactNode
   submit: (data: FormData) => Promise<void>
 }): React.JSX.Element {
+  const t = useT()
   return (
     <form
       className="management-form"
@@ -608,7 +630,7 @@ function AddForm({
       {children}
       <Button size="sm" type="submit">
         <Plus size={14} />
-        Add
+        {t('common.add')}
       </Button>
     </form>
   )
@@ -623,14 +645,15 @@ function Management({
   snapshot: WorkspaceSnapshot
   type: 'accounts' | 'activities' | 'checklists' | 'customers'
 }): React.JSX.Element {
+  const t = useT()
   const [editing, setEditing] = useState<
     WorkspaceAccount | WorkspaceActivityType | WorkspaceCustomer | null
   >(null)
   const info = {
-    customers: ['Customers', 'Clients and their colors across MOWL.'],
-    accounts: ['Accounts', 'Project accounts and active date ranges.'],
-    activities: ['Activity types', 'Separate color-coded work and filler activities.'],
-    checklists: ['Customer checklists', 'Items inherited by work entries for each customer.']
+    customers: [t('nav.customers'), t('reference.customerDetail')],
+    accounts: [t('nav.accounts'), t('reference.accountDetail')],
+    activities: [t('nav.activities'), t('reference.activityDetail')],
+    checklists: [t('checklist.title'), t('entry.listDetail')]
   }[type]
   async function create(request: ReferenceMutation): Promise<void> {
     await window.mowl.workspace.mutateReference(request)
@@ -638,7 +661,7 @@ function Management({
   }
   return (
     <section className="content-view">
-      <PageHeading eyebrow="REFERENCE DATA" title={info[0]}>
+      <PageHeading eyebrow={t('reference.referenceData')} title={info[0]}>
         {info[1]}
       </PageHeading>
       {type === 'customers' && (
@@ -652,7 +675,7 @@ function Management({
               })
             }
           >
-            <Input name="name" placeholder="Customer name" required />
+            <Input name="name" placeholder={t('common.customer')} required />
             <Input className="color-input" defaultValue="#111111" name="color" type="color" />
           </AddForm>
           <div className="management-list">
@@ -661,11 +684,11 @@ function Management({
                 active={item.isActive}
                 color={item.color}
                 key={item.id}
-                meta="Customer"
+                meta={t('common.customer')}
                 name={item.name}
               >
                 <Button
-                  aria-label="Edit"
+                  aria-label={t('common.edit')}
                   onClick={() => setEditing(item)}
                   size="icon"
                   variant="ghost"
@@ -696,7 +719,7 @@ function Management({
             }
           >
             <Select name="customer" required>
-              <option value="">Customer</option>
+              <option value="">{t('common.customer')}</option>
               {snapshot.customers
                 .filter((item) => item.isActive)
                 .map((item) => (
@@ -705,8 +728,8 @@ function Management({
                   </option>
                 ))}
             </Select>
-            <Input name="code" placeholder="Code" required />
-            <Input name="name" placeholder="Account name" required />
+            <Input name="code" placeholder={t('common.code')} required />
+            <Input name="name" placeholder={t('common.account')} required />
             <Input name="from" required type="date" />
             <Input name="until" type="date" />
           </AddForm>
@@ -719,7 +742,7 @@ function Management({
                 name={`${item.code} · ${item.name}`}
               >
                 <Button
-                  aria-label="Edit"
+                  aria-label={t('common.edit')}
                   onClick={() => setEditing(item)}
                   size="icon"
                   variant="ghost"
@@ -749,10 +772,10 @@ function Management({
             }
           >
             <Select name="category">
-              <option value="work">Work</option>
-              <option value="filler">Filler</option>
+              <option value="work">{t('common.work')}</option>
+              <option value="filler">{t('common.filler')}</option>
             </Select>
-            <Input name="name" placeholder="Activity name" required />
+            <Input name="name" placeholder={t('activity.name')} required />
             <Input className="color-input" defaultValue="#333333" name="color" type="color" />
             <Input defaultValue="0" min="0" name="order" type="number" />
           </AddForm>
@@ -762,11 +785,11 @@ function Management({
                 active={item.isActive}
                 color={item.color}
                 key={item.id}
-                meta={`${item.category} · order ${item.sortOrder}`}
+                meta={`${item.category === 'work' ? t('work.work') : t('work.filler')} · ${t('reference.sortOrder')} ${item.sortOrder}`}
                 name={item.name}
               >
                 <Button
-                  aria-label="Edit"
+                  aria-label={t('common.edit')}
                   onClick={() => setEditing(item)}
                   size="icon"
                   variant="ghost"
@@ -795,7 +818,7 @@ function Management({
             }
           >
             <Select name="customer" required>
-              <option value="">Customer</option>
+              <option value="">{t('common.customer')}</option>
               {snapshot.customers
                 .filter((item) => item.isActive)
                 .map((item) => (
@@ -804,7 +827,7 @@ function Management({
                   </option>
                 ))}
             </Select>
-            <Input name="name" placeholder="Checklist item" required />
+            <Input name="name" placeholder={t('checklist.item')} required />
             <Input defaultValue="0" min="0" name="order" type="number" />
           </AddForm>
           <div className="management-list">
@@ -837,6 +860,7 @@ function ReferenceEditor({
   reload: () => Promise<void>
   snapshot: WorkspaceSnapshot
 }): React.JSX.Element {
+  const t = useT()
   const isAccount = 'code' in item,
     isActivity = 'category' in item
   async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -880,10 +904,10 @@ function ReferenceEditor({
     onClose()
   }
   return (
-    <Dialog onOpenChange={(open) => !open && onClose()} open title="Edit reference item">
+    <Dialog onOpenChange={(open) => !open && onClose()} open title={t('reference.edit')}>
       <form className="form-stack" onSubmit={(event) => void save(event)}>
         {isAccount && (
-          <Field label="Customer">
+          <Field label={t('common.customer')}>
             <Select defaultValue={item.customerId} name="customer">
               {snapshot.customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
@@ -893,19 +917,19 @@ function ReferenceEditor({
             </Select>
           </Field>
         )}
-        <Field label="Name">
+        <Field label={t('common.name')}>
           <Input defaultValue={item.name} name="name" required />
         </Field>
         {isAccount && (
           <>
-            <Field label="Code">
+            <Field label={t('common.code')}>
               <Input defaultValue={item.code} name="code" required />
             </Field>
             <div className="form-grid two">
-              <Field label="Active from">
+              <Field label={t('common.activeFrom')}>
                 <Input defaultValue={item.activeFrom} name="from" type="date" />
               </Field>
-              <Field label="Active until">
+              <Field label={t('common.activeUntil')}>
                 <Input defaultValue={item.activeUntil ?? ''} name="until" type="date" />
               </Field>
             </div>
@@ -913,21 +937,21 @@ function ReferenceEditor({
         )}
         {isActivity && (
           <>
-            <Field label="Color">
+            <Field label={t('common.color')}>
               <Input defaultValue={item.color} name="color" type="color" />
             </Field>
-            <Field label="Sort order">
+            <Field label={t('reference.sortOrder')}>
               <Input defaultValue={item.sortOrder} name="order" type="number" />
             </Field>
           </>
         )}
         {!isAccount && !isActivity && (
-          <Field label="Color">
+          <Field label={t('common.color')}>
             <Input defaultValue={item.color ?? '#111111'} name="color" type="color" />
           </Field>
         )}
         <div className="dialog-actions">
-          <Button type="submit">Save changes</Button>
+          <Button type="submit">{t('common.saveChanges')}</Button>
         </div>
       </form>
     </Dialog>
@@ -943,6 +967,7 @@ function ChecklistRow({
   reload: () => Promise<void>
   snapshot: WorkspaceSnapshot
 }): React.JSX.Element {
+  const t = useT()
   const [name, setName] = useState(definition.name)
   async function save(): Promise<void> {
     await window.mowl.workspace.mutateReference({
@@ -957,17 +982,17 @@ function ChecklistRow({
     <ManagementRow
       active={definition.isActive}
       key={definition.id}
-      meta={snapshot.customers.find((item) => item.id === definition.customerId)?.name ?? 'Unknown'}
+      meta={snapshot.customers.find((item) => item.id === definition.customerId)?.name ?? t('common.unknown')}
       name={
         <Input
-          aria-label="Checklist name"
+          aria-label={t('checklist.item')}
           onChange={(event) => setName(event.target.value)}
           value={name}
         />
       }
     >
       <Button
-        aria-label="Save"
+        aria-label={t('common.save')}
         disabled={name === definition.name}
         onClick={() => void save()}
         size="icon"
@@ -1029,26 +1054,27 @@ function SettingsView({
   setDark: (value: boolean) => void
   updateReminderSettings: (settings: Partial<ReminderSettings>) => Promise<void>
 }): React.JSX.Element {
+  const t = useT()
   return (
     <section className="content-view">
-      <PageHeading eyebrow="PREFERENCES" title="Settings">
-        Appearance, language, and work-hour reminders.
+      <PageHeading eyebrow={t('nav.settings')} title={t('settings.title')}>
+        {t('settings.titleDetail')}
       </PageHeading>
       <div className="settings-group">
-        <h2>Appearance</h2>
+        <h2>{t('settings.appearance')}</h2>
         <div className="setting-row">
           <span>{dark ? <Moon size={18} /> : <Sun size={18} />}</span>
           <div>
-            <strong>Dark theme</strong>
-            <small>Use the dark neutral palette.</small>
+            <strong>{t('settings.darkTheme')}</strong>
+            <small>{t('settings.darkThemeDetail')}</small>
           </div>
           <Switch checked={dark} onCheckedChange={setDark} />
         </div>
         <div className="setting-row">
           <span />
           <div>
-            <strong>Language</strong>
-            <small>Interface language</small>
+            <strong>{t('settings.language')}</strong>
+            <small>{t('settings.languageDetail')}</small>
           </div>
           <Select
             onChange={(event) =>
@@ -1058,20 +1084,20 @@ function SettingsView({
             }
             value={reminderSettings.language}
           >
-            <option value="en">English</option>
-            <option value="cs">Čeština</option>
+            <option value="en">{t('language.en')}</option>
+            <option value="cs">{t('language.cs')}</option>
           </Select>
         </div>
       </div>
       <div className="settings-group">
-        <h2>Reminders</h2>
+        <h2>{t('settings.reminders')}</h2>
         <div className="setting-row">
           <span>
             <Clock3 size={18} />
           </span>
           <div>
-            <strong>Work-hour reminders</strong>
-            <small>Notify while MOWL is running.</small>
+            <strong>{t('settings.workHourReminders')}</strong>
+            <small>{t('settings.reminderDetail')}</small>
           </div>
           <Switch
             checked={reminderSettings.enabled}
@@ -1081,8 +1107,8 @@ function SettingsView({
         <div className="setting-row">
           <span />
           <div>
-            <strong>Interval</strong>
-            <small>Reminder frequency</small>
+            <strong>{t('settings.interval')}</strong>
+            <small>{t('settings.intervalDetail')}</small>
           </div>
           <Select
             disabled={!reminderSettings.enabled}
@@ -1093,10 +1119,10 @@ function SettingsView({
             }
             value={reminderSettings.intervalMinutes}
           >
-            <option value="15">15 minutes</option>
-            <option value="30">30 minutes</option>
-            <option value="60">60 minutes</option>
-            <option value="120">120 minutes</option>
+            <option value="15">{t('settings.interval.15')}</option>
+            <option value="30">{t('settings.interval.30')}</option>
+            <option value="60">{t('settings.interval.60')}</option>
+            <option value="120">{t('settings.interval.120')}</option>
           </Select>
         </div>
       </div>
@@ -1111,6 +1137,7 @@ function Workspace({
   metadata: DatabaseMetadata
   close: () => void
 }): React.JSX.Element {
+  const t = useT()
   const [snapshot, setSnapshot] = useState(emptyWorkspace),
     [view, setView] = useState<View>('dashboard'),
     [date, setDate] = useState(today()),
@@ -1121,7 +1148,7 @@ function Workspace({
     [reminderSettings, setReminderSettings] = useState<ReminderSettings>({
       enabled: false,
       intervalMinutes: 30,
-      language: 'en'
+      language: 'cs'
     }),
     [dark, setDark] = useState(localStorage.getItem('mowl-theme') === 'dark')
   async function reload(): Promise<void> {
@@ -1130,7 +1157,7 @@ function Workspace({
       setError('')
       setLoadState('ready')
     } catch (caught) {
-      setError(String(caught))
+      setError(localizedError(caught, t))
       setLoadState('error')
     }
   }
@@ -1142,18 +1169,21 @@ function Workspace({
         setLoadState('ready')
       })
       .catch((caught) => {
-        setError(String(caught))
+        setError(localizedError(caught, t))
         setLoadState('error')
       })
     void window.mowl.settings
       .get()
       .then(setReminderSettings)
-      .catch((caught) => setError(String(caught)))
+      .catch((caught) => setError(localizedError(caught, t)))
   }, [])
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
     localStorage.setItem('mowl-theme', dark ? 'dark' : 'light')
   }, [dark])
+  useEffect(() => {
+    activateLanguage(reminderSettings.language)
+  }, [reminderSettings.language])
   const day = snapshot.days.find((item) => item.date === date),
     dayEntries = snapshot.entries.filter((entry) => entry.date === date)
   const shownEntries = filterWorkEntries(snapshot, filters)
@@ -1172,7 +1202,7 @@ function Workspace({
       await window.mowl.workspace.setDayStatus({ date, status: value })
       await reload()
     } catch (caught) {
-      setError(String(caught))
+      setError(localizedError(caught, t))
     }
   }
   async function switchDatabase(): Promise<void> {
@@ -1184,16 +1214,16 @@ function Workspace({
       setReminderSettings(await window.mowl.settings.update(settings))
       setError('')
     } catch (caught) {
-      setError(String(caught))
+      setError(localizedError(caught, t))
     }
   }
   const nav: Array<[View, string, ReactNode]> = [
-    ['dashboard', 'Dashboard', <LayoutDashboard key="dashboard" size={17} />],
-    ['entries', 'Work entries', <ListFilter key="entries" size={17} />],
-    ['customers', 'Customers', <Building2 key="customers" size={17} />],
-    ['accounts', 'Accounts', <BriefcaseBusiness key="accounts" size={17} />],
-    ['activities', 'Activity types', <Activity key="activities" size={17} />],
-    ['checklists', 'Checklists', <CheckSquare2 key="checklists" size={17} />]
+    ['dashboard', t('nav.dashboard'), <LayoutDashboard key="dashboard" size={17} />],
+    ['entries', t('nav.entries'), <ListFilter key="entries" size={17} />],
+    ['customers', t('nav.customers'), <Building2 key="customers" size={17} />],
+    ['accounts', t('nav.accounts'), <BriefcaseBusiness key="accounts" size={17} />],
+    ['activities', t('nav.activities'), <Activity key="activities" size={17} />],
+    ['checklists', t('nav.checklists'), <CheckSquare2 key="checklists" size={17} />]
   ]
   return (
     <div className="app-shell">
@@ -1218,11 +1248,11 @@ function Workspace({
             onClick={() => setView('settings')}
           >
             <Settings size={17} />
-            <span>Settings</span>
+            <span>{t('nav.settings')}</span>
           </button>
           <button onClick={() => void switchDatabase()}>
             <Database size={17} />
-            <span>Switch database</span>
+            <span>{t('nav.switchDatabase')}</span>
           </button>
         </div>
       </aside>
@@ -1235,7 +1265,7 @@ function Workspace({
           <div className="toolbar-actions">
             <label className="toolbar-reminder">
               <Clock3 size={17} />
-              <span>Reminders</span>
+              <span>{t('toolbar.reminders')}</span>
               <Switch
                 checked={reminderSettings.enabled}
                 onCheckedChange={(enabled) => void updateReminderSettings({ enabled })}
@@ -1244,7 +1274,7 @@ function Workspace({
             {day?.status === 'confirmed' ? (
               <Button onClick={() => void status('draft')} variant="outline">
                 <RotateCcw size={15} />
-                Return to draft
+                {t('day.returnToDraft')}
               </Button>
             ) : (
               <Button
@@ -1253,7 +1283,7 @@ function Workspace({
                 variant="outline"
               >
                 <CalendarCheck size={15} />
-                Confirm day
+                {t('day.confirm')}
               </Button>
             )}
             <Button
@@ -1262,14 +1292,14 @@ function Workspace({
               variant="outline"
             >
               <Clock3 size={15} />
-              Filler
+              {t('common.filler')}
             </Button>
             <Button
               disabled={day?.status === 'confirmed'}
               onClick={() => setEditor({ kind: 'work' })}
             >
               <Plus size={15} />
-              Work entry
+              {t('entry.newWork')}
             </Button>
           </div>
         </header>
@@ -1278,8 +1308,8 @@ function Workspace({
         )}
         <div className="workspace-scroll">
           {loadState === 'loading' && (
-            <StatePanel icon={<Clock3 size={24} />} title="Loading workspace">
-              Reading entries and reference data...
+            <StatePanel icon={<Clock3 size={24} />} title={t('state.loading')}>
+              {t('state.loadingDetail')}
             </StatePanel>
           )}
           {loadState === 'error' && (
@@ -1287,88 +1317,88 @@ function Workspace({
               icon={<Database size={24} />}
               title={
                 error.includes('database-not-open')
-                  ? 'Database unavailable'
-                  : 'Could not load workspace'
+                  ? t('state.databaseUnavailable')
+                  : t('state.loadError')
               }
             >
               <p>{error}</p>
               <div className="state-actions">
                 <Button onClick={() => void reload()} variant="outline">
-                  Try again
+                  {t('state.tryAgain')}
                 </Button>
-                <Button onClick={() => void switchDatabase()}>Choose database</Button>
+                <Button onClick={() => void switchDatabase()}>{t('state.chooseDatabase')}</Button>
               </div>
             </StatePanel>
           )}
           {loadState === 'ready' && view === 'dashboard' && (
             <section className="content-view">
-              <PageHeading eyebrow="TODAY" title="Work overview">
-                Recorded time and current day status.
+              <PageHeading eyebrow={t('common.date')} title={t('dashboard.title')}>
+                {t('dashboard.dayDetail')}
               </PageHeading>
               <div className="stats-grid">
                 <Stat
                   icon={<Clock3 size={19} />}
-                  label="Today's total"
+                  label={t('dashboard.todayTotal')}
                   value={formatDuration(dashboard.today.totalMinutes)}
-                  detail={`${formatDuration(dashboard.today.workMinutes)} work · ${formatDuration(dashboard.today.fillerMinutes)} filler`}
+                  detail={`${formatDuration(dashboard.today.workMinutes)} ${t('work.work')} · ${formatDuration(dashboard.today.fillerMinutes)} ${t('work.filler')}`}
                 />
                 <Stat
                   icon={<BriefcaseBusiness size={19} />}
-                  label="This week's total"
+                  label={t('dashboard.weekTotal')}
                   value={formatDuration(dashboard.week.totalMinutes)}
-                  detail={`${formatDuration(dashboard.week.workMinutes)} work · ${formatDuration(dashboard.week.fillerMinutes)} filler`}
+                  detail={`${formatDuration(dashboard.week.workMinutes)} ${t('work.work')} · ${formatDuration(dashboard.week.fillerMinutes)} ${t('work.filler')}`}
                 />
                 <Stat
                   icon={<Building2 size={19} />}
-                  label="Active customers"
+                  label={t('dashboard.activeCustomers')}
                   value={String(snapshot.customers.filter((item) => item.isActive).length)}
                 />
                 <Stat
                   icon={<CalendarCheck size={19} />}
-                  label="Day status"
-                  value={day?.status ?? 'Draft'}
+                  label={t('common.dayStatus')}
+                  value={day?.status === 'confirmed' ? t('common.confirmed') : t('day.draft')}
                 />
               </div>
               {snapshot.entries.length === 0 ? (
-                <StatePanel icon={<Clock3 size={24} />} title="No time recorded yet">
-                  Add a work or filler entry to begin your dashboard.
+                <StatePanel icon={<Clock3 size={24} />} title={t('dashboard.empty')}>
+                  {t('dashboard.emptyDetail')}
                 </StatePanel>
               ) : (
                 <>
                   <section className="customer-summary">
                     <div className="section-heading">
                       <div>
-                        <h2>Summary by customer</h2>
+                        <h2>{t('dashboard.byCustomer')}</h2>
                         <p>
-                          {dashboard.weekFrom} to {dashboard.weekTo}
+                          {dashboard.weekFrom} {t('common.to')} {dashboard.weekTo}
                         </p>
                       </div>
                     </div>
                     {dashboard.byCustomer.length === 0 ? (
-                      <p className="compact-empty">No customer work this week.</p>
+                      <p className="compact-empty">{t('dashboard.noCustomerWork')}</p>
                     ) : (
                       dashboard.byCustomer.map((item) => (
                         <div className="summary-row" key={item.customerId}>
                           <span className="color-label">
                             <i style={{ background: item.color ?? '#8a8a8a' }} />
-                            {item.customerName}
+                            {item.customerName ?? t('common.unknown')}
                           </span>
                           <strong>{formatDuration(item.minutes)}</strong>
                         </div>
                       ))
                     )}
                     <div className="summary-row filler-summary">
-                      <span>Filler time</span>
+                      <span>{t('dashboard.fillerTime')}</span>
                       <strong>{formatDuration(dashboard.week.fillerMinutes)}</strong>
                     </div>
                   </section>
                   <div className="section-heading">
                     <div>
-                      <h2>Recent entries</h2>
-                      <p>Latest recorded work and filler time.</p>
+                      <h2>{t('dashboard.recent')}</h2>
+                      <p>{t('dashboard.recentDetail')}</p>
                     </div>
                     <Button onClick={() => setView('entries')} variant="ghost">
-                      View all
+                      {t('view.all')}
                       <ChevronRight size={15} />
                     </Button>
                   </div>
@@ -1386,26 +1416,26 @@ function Workspace({
           {loadState === 'ready' && view === 'entries' && (
             <section className="content-view">
               <div className="entries-heading">
-                <PageHeading eyebrow="TIME LOG" title="Work entries">
-                  Checklists are available only inside entry details.
+                <PageHeading eyebrow={t('entry.title')} title={t('entry.listTitle')}>
+                  {t('entry.listDetail')}
                 </PageHeading>
               </div>
               <div className="filter-panel">
-                <Field label="From">
+                <Field label={t('common.from')}>
                   <Input
                     onChange={(event) => updateFilter('dateFrom', event.target.value)}
                     type="date"
                     value={filters.dateFrom ?? ''}
                   />
                 </Field>
-                <Field label="To">
+                <Field label={t('common.to')}>
                   <Input
                     onChange={(event) => updateFilter('dateTo', event.target.value)}
                     type="date"
                     value={filters.dateTo ?? ''}
                   />
                 </Field>
-                <Field label="Customer">
+                <Field label={t('common.customer')}>
                   <Select
                     onChange={(event) => {
                       updateFilter('customerId', Number(event.target.value) || undefined)
@@ -1413,7 +1443,7 @@ function Workspace({
                     }}
                     value={filters.customerId ?? ''}
                   >
-                    <option value="">All customers</option>
+                    <option value="">{t('common.allCustomers')}</option>
                     {snapshot.customers.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name}
@@ -1421,14 +1451,14 @@ function Workspace({
                     ))}
                   </Select>
                 </Field>
-                <Field label="Account">
+                <Field label={t('common.account')}>
                   <Select
                     onChange={(event) =>
                       updateFilter('accountId', Number(event.target.value) || undefined)
                     }
                     value={filters.accountId ?? ''}
                   >
-                    <option value="">All accounts</option>
+                    <option value="">{t('common.allAccounts')}</option>
                     {filteredAccounts.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.code} · {item.name}
@@ -1436,14 +1466,14 @@ function Workspace({
                     ))}
                   </Select>
                 </Field>
-                <Field label="Activity">
+                <Field label={t('common.activity')}>
                   <Select
                     onChange={(event) =>
                       updateFilter('activityTypeId', Number(event.target.value) || undefined)
                     }
                     value={filters.activityTypeId ?? ''}
                   >
-                    <option value="">All activities</option>
+                    <option value="">{t('activity.all')}</option>
                     {snapshot.activityTypes.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name}
@@ -1451,17 +1481,17 @@ function Workspace({
                     ))}
                   </Select>
                 </Field>
-                <Field label="Description">
+                <Field label={t('common.description')}>
                   <Input
                     onChange={(event) => updateFilter('description', event.target.value)}
-                    placeholder="Contains text"
+                    placeholder={t('filter.containsText')}
                     value={filters.description ?? ''}
                   />
                 </Field>
-                <Field label="Ticket">
+                <Field label={t('common.ticket')}>
                   <Input
                     onChange={(event) => updateFilter('ticketNumber', event.target.value)}
-                    placeholder="Contains number"
+                    placeholder={t('filter.containsNumber')}
                     value={filters.ticketNumber ?? ''}
                   />
                 </Field>
@@ -1471,11 +1501,13 @@ function Workspace({
                   variant="ghost"
                 >
                   <ListFilter size={15} />
-                  Clear
+                  {t('filter.clear')}
                 </Button>
               </div>
               <p className="result-count">
-                {shownEntries.length} {shownEntries.length === 1 ? 'entry' : 'entries'}
+                {t(shownEntries.length === 1 ? 'entry.count.one' : 'entry.count.other', {
+                  count: shownEntries.length
+                })}
               </p>
               <EntryTable
                 entries={[...shownEntries].reverse()}

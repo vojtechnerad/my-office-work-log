@@ -19,7 +19,7 @@ export interface DurationBreakdown {
 export interface CustomerSummary {
   color: string | null
   customerId: number
-  customerName: string
+  customerName: string | null
   minutes: number
 }
 
@@ -113,7 +113,7 @@ export function calculateDashboard(
         return {
           color: customer?.color ?? null,
           customerId,
-          customerName: customer?.name ?? 'Unknown customer',
+          customerName: customer?.name ?? null,
           minutes
         }
       })

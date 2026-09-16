@@ -6,9 +6,20 @@ import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import type { DatabaseMetadata } from '../../shared/ipc'
 import * as schema from './schema'
-import { databaseMetadata } from './schema'
+import { activityTypes, databaseMetadata } from './schema'
 
 type MowlDatabase = BetterSQLite3Database<typeof import('./schema')>
+
+const defaultActivityTypes = [
+  { category: 'work' as const, color: '#2563eb', name: 'analysis', sortOrder: 0 },
+  { category: 'work' as const, color: '#16a34a', name: 'implementation', sortOrder: 1 },
+  { category: 'work' as const, color: '#ca8a04', name: 'testing', sortOrder: 2 },
+  { category: 'work' as const, color: '#dc2626', name: 'bugfixing', sortOrder: 3 },
+  { category: 'work' as const, color: '#7c3aed', name: 'meeting', sortOrder: 4 },
+  { category: 'filler' as const, color: '#0891b2', name: 'school', sortOrder: 0 },
+  { category: 'filler' as const, color: '#db2777', name: 'doctor', sortOrder: 1 },
+  { category: 'filler' as const, color: '#6b7280', name: 'time off', sortOrder: 2 }
+]
 
 export interface DatabaseConnection {
   database: MowlDatabase
@@ -77,6 +88,24 @@ export function createDatabase(options: CreateDatabaseOptions): DatabaseConnecti
     })
     .onConflictDoNothing()
     .run()
+
+  const hasMetadata = database
+    .select()
+    .from(databaseMetadata)
+    .where(eq(databaseMetadata.id, 1))
+    .get()
+  if (hasMetadata?.createdAt === now) {
+    database
+      .insert(activityTypes)
+      .values(
+        defaultActivityTypes.map((activityType) => ({
+          ...activityType,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+      .run()
+  }
 
   const metadata = database.select().from(databaseMetadata).where(eq(databaseMetadata.id, 1)).get()
   if (!metadata) {

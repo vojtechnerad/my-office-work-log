@@ -2,8 +2,10 @@ import { existsSync, mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join, resolve } from 'path'
 import Database from 'better-sqlite3'
+import { asc } from 'drizzle-orm'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createDatabase, openDatabase } from './index'
+import { activityTypes } from './schema'
 
 const migrationsFolder = resolve(process.cwd(), 'resources/migrations')
 const temporaryDirectories: string[] = []
@@ -36,6 +38,11 @@ describe('MOWL database initialization', () => {
       displayName: 'Work log'
     })
     expect(connection.metadata.createdAt).toBe(connection.metadata.updatedAt)
+    const seededActivities = connection.database
+      .select({ category: activityTypes.category, name: activityTypes.name })
+      .from(activityTypes)
+      .orderBy(asc(activityTypes.category), asc(activityTypes.sortOrder))
+      .all()
     connection.close()
 
     const sqlite = new Database(filePath, { readonly: true })
@@ -48,7 +55,7 @@ describe('MOWL database initialization', () => {
     ).toBeDefined()
     expect(
       sqlite.prepare('SELECT COUNT(*) AS count FROM __drizzle_migrations').get()
-    ).toMatchObject({ count: 2 })
+    ).toMatchObject({ count: 3 })
     expect(
       sqlite
         .prepare(
@@ -66,6 +73,16 @@ describe('MOWL database initialization', () => {
         expect.objectContaining({ from: 'work_day_id', table: 'work_days' })
       ])
     )
+    expect(seededActivities).toEqual([
+      { category: 'filler', name: 'school' },
+      { category: 'filler', name: 'doctor' },
+      { category: 'filler', name: 'time off' },
+      { category: 'work', name: 'analysis' },
+      { category: 'work', name: 'implementation' },
+      { category: 'work', name: 'testing' },
+      { category: 'work', name: 'bugfixing' },
+      { category: 'work', name: 'meeting' }
+    ])
     sqlite.close()
   })
 

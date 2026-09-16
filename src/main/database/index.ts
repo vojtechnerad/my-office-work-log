@@ -1,4 +1,4 @@
-import { mkdirSync } from 'fs'
+import { existsSync, mkdirSync } from 'fs'
 import { dirname, extname } from 'path'
 import Database from 'better-sqlite3'
 import { eq } from 'drizzle-orm'
@@ -88,6 +88,9 @@ export function createDatabase(options: CreateDatabaseOptions): DatabaseConnecti
 
 export function openDatabase(options: OpenDatabaseOptions): DatabaseConnection {
   assertDatabaseFilePath(options.filePath)
+  if (!existsSync(options.filePath)) {
+    throw new Error('The selected MOWL database file does not exist.')
+  }
 
   const { database, sqlite } = migrateDatabase(options.filePath, options.migrationsFolder)
   const metadata = database.select().from(databaseMetadata).where(eq(databaseMetadata.id, 1)).get()

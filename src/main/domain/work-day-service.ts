@@ -1,8 +1,17 @@
 export interface Account {
   activeFrom: string
   activeUntil: string | null
+  customerId?: number
   id: number
   isActive: boolean
+}
+
+export interface ChecklistDefinition {
+  customerId: number
+  id: number
+  isActive: boolean
+  name: string
+  sortOrder: number
 }
 
 export interface ActivityType {
@@ -76,7 +85,8 @@ function overlaps(first: WorkEntry, second: WorkEntry): boolean {
 export class WorkDayService {
   constructor(
     private readonly accounts: Account[],
-    private readonly activityTypes: ActivityType[]
+    private readonly activityTypes: ActivityType[],
+    private readonly checklistDefinitions: ChecklistDefinition[] = []
   ) {}
 
   validAccountsForDate(date: string): Account[] {
@@ -150,6 +160,22 @@ export class WorkDayService {
       return
     }
     entry.checklistValues.push({ checklistDefinitionId, isChecked })
+  }
+
+  visibleChecklistDefinitions(entry: WorkEntry): ChecklistDefinition[] {
+    if (entry.accountId === null) return []
+    const account = this.accounts.find((candidate) => candidate.id === entry.accountId)
+    if (!account?.customerId) return []
+
+    return this.checklistDefinitions.filter((definition) => {
+      if (definition.customerId !== account.customerId) return false
+      return (
+        definition.isActive ||
+        entry.checklistValues.some(
+          (value) => value.checklistDefinitionId === definition.id && value.isChecked
+        )
+      )
+    })
   }
 
   private assertDraft(day: WorkDay): void {

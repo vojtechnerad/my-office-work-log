@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { WorkDayService, type Account, type ActivityType, type WorkDay } from './work-day-service'
+import {
+  WorkDayService,
+  type Account,
+  type ActivityType,
+  type ChecklistDefinition,
+  type WorkDay
+} from './work-day-service'
 
 const workAccount: Account = {
   activeFrom: '2026-01-01',
@@ -11,6 +17,11 @@ const inactiveAccount: Account = { ...workAccount, id: 2, isActive: false }
 const expiredAccount: Account = { ...workAccount, activeUntil: '2026-01-31', id: 3 }
 const workActivity: ActivityType = { category: 'work', id: 1, isActive: true }
 const fillerActivity: ActivityType = { category: 'filler', id: 2, isActive: true }
+const customerAccount: Account = { ...workAccount, customerId: 10 }
+const checklistDefinitions: ChecklistDefinition[] = [
+  { customerId: 10, id: 1, isActive: true, name: 'Reviewed', sortOrder: 0 },
+  { customerId: 10, id: 2, isActive: false, name: 'Legacy check', sortOrder: 1 }
+]
 
 function createDay(status: WorkDay['status'] = 'draft'): WorkDay {
   return { date: '2026-02-10', entries: [], id: 1, status }
@@ -177,6 +188,42 @@ describe('work-day workflow', () => {
     expect(entry.description).toBe('Reviewed')
     expect(entry.ticketNumber).toBe('MOWL-1')
     expect(entry.checklistValues).toEqual([{ checklistDefinitionId: 42, isChecked: true }])
+  })
+
+  it('shows inherited checklist definitions only for work entries and retains checked inactive items', () => {
+    const service = new WorkDayService(
+      [customerAccount],
+      [workActivity, fillerActivity],
+      checklistDefinitions
+    )
+    const day = createDay()
+    const workEntry = service.addEntry(day, {
+      accountId: customerAccount.id,
+      date: day.date,
+      endTime: '10:00',
+      startTime: '09:00'
+    }).entry
+    const fillerEntry = service.addEntry(day, {
+      activityTypeId: fillerActivity.id,
+      date: day.date,
+      endTime: '11:00',
+      kind: 'filler',
+      startTime: '10:00'
+    }).entry
+
+    expect(
+      service.visibleChecklistDefinitions(workEntry).map((definition) => definition.id)
+    ).toEqual([1])
+    expect(service.visibleChecklistDefinitions(fillerEntry)).toEqual([])
+    service.confirmDay(day)
+    service.setChecklistValue(workEntry, 2, true)
+    expect(
+      service.visibleChecklistDefinitions(workEntry).map((definition) => definition.id)
+    ).toEqual([1, 2])
+    service.setChecklistValue(workEntry, 2, false)
+    expect(
+      service.visibleChecklistDefinitions(workEntry).map((definition) => definition.id)
+    ).toEqual([1])
   })
 
   it('requires explicit confirmation before returning a day to draft', () => {

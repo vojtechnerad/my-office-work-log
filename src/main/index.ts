@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, dialog, ipcMain, Notification } from 'electron'
-import { existsSync } from 'fs'
-import { extname, join } from 'path'
+import { existsSync, statSync } from 'fs'
+import { extname, join, resolve } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { createDatabase, openDatabase, type DatabaseConnection } from './database'
@@ -10,13 +10,25 @@ import {
   ensureDatabaseFileName,
   getDefaultDatabaseDirectory
 } from './database/registry'
-import { IPC_CHANNELS, type HealthCheck, type IpcContract } from '../shared/ipc'
+import {
+  IPC_CHANNELS,
+  IPC_EVENTS,
+  type ExternalDatabaseOpenEvent,
+  type HealthCheck,
+  type IpcContract
+} from '../shared/ipc'
 import { registerWorkspaceIpc } from './workspace-ipc'
 import { JsonReminderSettingsStore, ReminderService } from './reminder-service'
+import {
+  getAssociationExecutablePath,
+  registerMowlFileAssociation
+} from './windows-file-association'
 
 let activeDatabase: DatabaseConnection | undefined
 let databaseRegistry: DatabaseRegistryStore | undefined
 let reminderService: ReminderService | undefined
+let pendingDatabaseFilePath = getDatabaseFilePathFromArguments(process.argv)
+let pendingExternalDatabaseOpen: ExternalDatabaseOpenEvent | undefined
 
 function getMigrationsFolder(): string {
   return app.isPackaged
@@ -25,7 +37,16 @@ function getMigrationsFolder(): string {
 }
 
 function getDatabaseFilePathFromArguments(arguments_: string[]): string | undefined {
-  return arguments_.find((argument) => extname(argument).toLowerCase() === '.mowldb')
+  const filePath = arguments_.find((argument) => extname(argument).toLowerCase() === '.mowldb')
+  return filePath ? resolve(filePath) : undefined
+}
+
+function isExistingFile(filePath: string): boolean {
+  try {
+    return existsSync(filePath) && statSync(filePath).isFile()
+  } catch {
+    return false
+  }
 }
 
 function openAndRememberDatabase(filePath: string): DatabaseConnection {
@@ -44,7 +65,34 @@ function focusMainWindow(): void {
   }
 }
 
-function createWindow(): void {
+function notifyExternalDatabaseOpen(event: ExternalDatabaseOpenEvent): void {
+  const windows = BrowserWindow.getAllWindows()
+  if (windows.length === 0) {
+    pendingExternalDatabaseOpen = event
+    return
+  }
+
+  for (const window of windows) {
+    window.webContents.send(IPC_EVENTS.databaseOpened, event)
+  }
+}
+
+function openExternalDatabase(filePath: string): void {
+  if (!isExistingFile(filePath)) {
+    notifyExternalDatabaseOpen({ error: 'database-file-missing' })
+    return
+  }
+
+  try {
+    const connection = openAndRememberDatabase(filePath)
+    notifyExternalDatabaseOpen({ metadata: connection.metadata })
+  } catch (error) {
+    console.error('Unable to open MOWL database:', error)
+    notifyExternalDatabaseOpen({ error: 'database-file-invalid' })
+  }
+}
+
+function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 900,
@@ -77,6 +125,14 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (!pendingExternalDatabaseOpen) return
+    mainWindow.webContents.send(IPC_EVENTS.databaseOpened, pendingExternalDatabaseOpen)
+    pendingExternalDatabaseOpen = undefined
+  })
+
+  return mainWindow
 }
 
 // This method will be called when Electron has finished
@@ -85,6 +141,15 @@ function createWindow(): void {
 app.whenReady().then(() => {
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.mowl.app')
+  if (process.platform === 'win32' && app.isPackaged) {
+    try {
+      registerMowlFileAssociation(
+        getAssociationExecutablePath(process.execPath, process.env['PORTABLE_EXECUTABLE_FILE'])
+      )
+    } catch (error) {
+      console.error('Unable to register the MOWL file association:', error)
+    }
+  }
   databaseRegistry = new DatabaseRegistryStore(
     join(app.getPath('userData'), 'known-databases.json')
   )
@@ -183,15 +248,11 @@ app.whenReady().then(() => {
     }
   )
 
-  const associatedDatabaseFile = getDatabaseFilePathFromArguments(process.argv)
   const lastUsedFilePath = databaseRegistry.list().selectedFilePath
-  const databaseFileToOpen = associatedDatabaseFile ?? lastUsedFilePath
-  if (databaseFileToOpen && existsSync(databaseFileToOpen)) {
-    try {
-      openAndRememberDatabase(databaseFileToOpen)
-    } catch (error) {
-      console.error('Unable to open MOWL database:', error)
-    }
+  const databaseFileToOpen = pendingDatabaseFilePath ?? lastUsedFilePath
+  pendingDatabaseFilePath = undefined
+  if (databaseFileToOpen) {
+    openExternalDatabase(databaseFileToOpen)
   }
 
   createWindow()
@@ -206,13 +267,9 @@ app.whenReady().then(() => {
 if (app.requestSingleInstanceLock()) {
   app.on('second-instance', (_, commandLine) => {
     const databaseFilePath = getDatabaseFilePathFromArguments(commandLine)
-    if (databaseFilePath && existsSync(databaseFilePath)) {
-      try {
-        openAndRememberDatabase(databaseFilePath)
-      } catch (error) {
-        console.error('Unable to open MOWL database:', error)
-      }
-    }
+    if (databaseFilePath)
+      if (databaseRegistry) openExternalDatabase(databaseFilePath)
+      else pendingDatabaseFilePath = databaseFilePath
     focusMainWindow()
   })
 } else {

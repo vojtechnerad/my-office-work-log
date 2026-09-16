@@ -15,7 +15,17 @@ extraResources:
   - from: resources/migrations
     to: migrations
 win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-portable.${ext}
   executableName: mowl
+fileAssociations:
+  - ext: mowldb
+    name: MOWL.Database
+    description: MOWL database
+    role: Editor
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

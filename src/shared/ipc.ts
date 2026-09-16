@@ -32,6 +32,10 @@ export const IPC_CHANNELS = {
   }
 } as const
 
+export const IPC_EVENTS = {
+  databaseOpened: 'database:opened'
+} as const
+
 export interface HealthCheck {
   status: 'ok'
 }
@@ -50,6 +54,11 @@ export interface DatabaseMetadata {
   description: string
   displayName: string
   updatedAt: string
+}
+
+export interface ExternalDatabaseOpenEvent {
+  error?: 'database-file-invalid' | 'database-file-missing'
+  metadata?: DatabaseMetadata
 }
 
 export interface DatabaseFile extends DatabaseMetadata {
@@ -274,6 +283,7 @@ export interface MowlApi {
       request: IpcContract[typeof IPC_CHANNELS.database.locate]['request']
     ) => Promise<DatabaseMetadata | undefined>
     remove: (request: IpcContract[typeof IPC_CHANNELS.database.remove]['request']) => Promise<void>
+    onExternalOpen: (listener: (event: ExternalDatabaseOpenEvent) => void) => () => void
   }
   health: () => Promise<HealthCheck>
   settings: {

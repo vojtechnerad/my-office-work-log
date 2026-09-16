@@ -68,6 +68,8 @@ const formatDuration = (minutes: number): string =>
 function localizedError(error: unknown, translate: Translate): string {
   const code = error instanceof Error ? error.message : ''
   const messages: Record<string, Parameters<Translate>[0]> = {
+    'database-file-invalid': 'error.databaseFileInvalid',
+    'database-file-missing': 'error.databaseFileMissing',
     'database-not-open': 'error.databaseNotOpen',
     'work-day-confirmed-locked': 'error.workDayConfirmed',
     'work-day-empty': 'error.workDayEmpty',
@@ -76,7 +78,13 @@ function localizedError(error: unknown, translate: Translate): string {
   return translate(messages[code] ?? 'error.generic')
 }
 
-function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): React.JSX.Element {
+function Startup({
+  error: externalError,
+  onOpen
+}: {
+  error: string
+  onOpen: (metadata: DatabaseMetadata) => void
+}): React.JSX.Element {
   const t = useT()
   const [databases, setDatabases] = useState<DatabaseFile[]>([])
   const [createOpen, setCreateOpen] = useState(false)
@@ -132,7 +140,7 @@ function Startup({ onOpen }: { onOpen: (metadata: DatabaseMetadata) => void }): 
           <h1>{t('database.startTitle')}</h1>
           <p>{t('database.startDetail')}</p>
         </div>
-        {error && <div className="notice error">{error}</div>}
+        {(error || externalError) && <div className="notice error">{error || externalError}</div>}
         <div className="database-list">
           {loading && <p className="empty-state">{t('database.loading')}</p>}
           {!loading && databases.length === 0 && (
@@ -1131,9 +1139,11 @@ function SettingsView({
 }
 
 function Workspace({
+  externalError,
   metadata,
   close
 }: {
+  externalError: string
   metadata: DatabaseMetadata
   close: () => void
 }): React.JSX.Element {
@@ -1303,8 +1313,8 @@ function Workspace({
             </Button>
           </div>
         </header>
-        {error && loadState !== 'error' && (
-          <div className="notice error workspace-notice">{error}</div>
+        {(error || externalError) && loadState !== 'error' && (
+          <div className="notice error workspace-notice">{error || externalError}</div>
         )}
         <div className="workspace-scroll">
           {loadState === 'loading' && (
@@ -1550,7 +1560,10 @@ function Workspace({
 }
 
 function App(): React.JSX.Element {
+  const t = useT()
   const [metadata, setMetadata] = useState<DatabaseMetadata | null>(null)
+  const [externalError, setExternalError] = useState('')
+  const [workspaceVersion, setWorkspaceVersion] = useState(0)
   useEffect(() => {
     void window.mowl.database.list().then(async (registry) => {
       const selected = registry.databases.find(
@@ -1565,10 +1578,28 @@ function App(): React.JSX.Element {
         }
     })
   }, [])
+  useEffect(
+    () =>
+      window.mowl.database.onExternalOpen((event) => {
+        if (event.metadata) {
+          setExternalError('')
+          setMetadata(event.metadata)
+          setWorkspaceVersion((version) => version + 1)
+        } else if (event.error) {
+          setExternalError(localizedError(new Error(event.error), t))
+        }
+      }),
+    [t]
+  )
   return metadata ? (
-    <Workspace close={() => setMetadata(null)} metadata={metadata} />
+    <Workspace
+      close={() => setMetadata(null)}
+      externalError={externalError}
+      key={workspaceVersion}
+      metadata={metadata}
+    />
   ) : (
-    <Startup onOpen={setMetadata} />
+    <Startup error={externalError} onOpen={setMetadata} />
   )
 }
 

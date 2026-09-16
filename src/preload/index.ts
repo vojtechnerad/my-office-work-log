@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { IPC_CHANNELS, type MowlApi } from '../shared/ipc'
+import { IPC_CHANNELS, IPC_EVENTS, type MowlApi } from '../shared/ipc'
 
 const mowl: MowlApi = {
   database: {
@@ -9,7 +9,13 @@ const mowl: MowlApi = {
     open: (request) => ipcRenderer.invoke(IPC_CHANNELS.database.open, request),
     list: () => ipcRenderer.invoke(IPC_CHANNELS.database.list),
     locate: (request) => ipcRenderer.invoke(IPC_CHANNELS.database.locate, request),
-    remove: (request) => ipcRenderer.invoke(IPC_CHANNELS.database.remove, request)
+    remove: (request) => ipcRenderer.invoke(IPC_CHANNELS.database.remove, request),
+    onExternalOpen: (listener) => {
+      const handler = (_: Electron.IpcRendererEvent, event: Parameters<typeof listener>[0]): void =>
+        listener(event)
+      ipcRenderer.on(IPC_EVENTS.databaseOpened, handler)
+      return () => ipcRenderer.removeListener(IPC_EVENTS.databaseOpened, handler)
+    }
   },
   health: () => ipcRenderer.invoke(IPC_CHANNELS.app.health),
   settings: {

@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, dialog, ipcMain, Notification } from 'electron'
 import { existsSync } from 'fs'
 import { extname, join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
@@ -12,9 +12,11 @@ import {
 } from './database/registry'
 import { IPC_CHANNELS, type HealthCheck, type IpcContract } from '../shared/ipc'
 import { registerWorkspaceIpc } from './workspace-ipc'
+import { JsonReminderSettingsStore, ReminderService } from './reminder-service'
 
 let activeDatabase: DatabaseConnection | undefined
 let databaseRegistry: DatabaseRegistryStore | undefined
+let reminderService: ReminderService | undefined
 
 function getMigrationsFolder(): string {
   return app.isPackaged
@@ -86,6 +88,16 @@ app.whenReady().then(() => {
   databaseRegistry = new DatabaseRegistryStore(
     join(app.getPath('userData'), 'known-databases.json')
   )
+  reminderService = new ReminderService(
+    new JsonReminderSettingsStore(join(app.getPath('userData'), 'reminder-settings.json')),
+    global,
+    (notification) => {
+      const systemNotification = new Notification(notification)
+      systemNotification.on('click', focusMainWindow)
+      systemNotification.show()
+    }
+  )
+  reminderService.start()
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -95,6 +107,12 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle(IPC_CHANNELS.app.health, (): HealthCheck => ({ status: 'ok' }))
+  ipcMain.handle(IPC_CHANNELS.settings.get, () => reminderService?.getSettings())
+  ipcMain.handle(
+    IPC_CHANNELS.settings.update,
+    (_, request: IpcContract[typeof IPC_CHANNELS.settings.update]['request']) =>
+      reminderService?.update(request)
+  )
   registerWorkspaceIpc(() => activeDatabase?.database)
   ipcMain.handle(
     IPC_CHANNELS.database.create,
@@ -211,6 +229,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  reminderService?.stop()
 })
 
 // In this file you can include the rest of your app's specific main process

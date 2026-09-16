@@ -23,6 +23,7 @@ import type {
   DatabaseFile,
   DatabaseMetadata,
   ReferenceMutation,
+  ReminderSettings,
   SaveEntryRequest,
   WorkspaceAccount,
   WorkspaceActivityType,
@@ -1019,12 +1020,15 @@ function StatePanel({
 
 function SettingsView({
   dark,
-  setDark
+  reminderSettings,
+  setDark,
+  updateReminderSettings
 }: {
   dark: boolean
+  reminderSettings: ReminderSettings
   setDark: (value: boolean) => void
+  updateReminderSettings: (settings: Partial<ReminderSettings>) => Promise<void>
 }): React.JSX.Element {
-  const [reminders, setReminders] = useState(localStorage.getItem('mowl-reminders') === 'true')
   return (
     <section className="content-view">
       <PageHeading eyebrow="PREFERENCES" title="Settings">
@@ -1046,7 +1050,14 @@ function SettingsView({
             <strong>Language</strong>
             <small>Interface language</small>
           </div>
-          <Select defaultValue="en">
+          <Select
+            onChange={(event) =>
+              void updateReminderSettings({
+                language: event.target.value as ReminderSettings['language']
+              })
+            }
+            value={reminderSettings.language}
+          >
             <option value="en">English</option>
             <option value="cs">Čeština</option>
           </Select>
@@ -1063,11 +1074,8 @@ function SettingsView({
             <small>Notify while MOWL is running.</small>
           </div>
           <Switch
-            checked={reminders}
-            onCheckedChange={(value) => {
-              setReminders(value)
-              localStorage.setItem('mowl-reminders', String(value))
-            }}
+            checked={reminderSettings.enabled}
+            onCheckedChange={(enabled) => void updateReminderSettings({ enabled })}
           />
         </div>
         <div className="setting-row">
@@ -1076,11 +1084,19 @@ function SettingsView({
             <strong>Interval</strong>
             <small>Reminder frequency</small>
           </div>
-          <Select disabled={!reminders} defaultValue="30">
-            <option>15</option>
-            <option>30</option>
-            <option>60</option>
-            <option>120</option>
+          <Select
+            disabled={!reminderSettings.enabled}
+            onChange={(event) =>
+              void updateReminderSettings({
+                intervalMinutes: Number(event.target.value) as ReminderSettings['intervalMinutes']
+              })
+            }
+            value={reminderSettings.intervalMinutes}
+          >
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="60">60 minutes</option>
+            <option value="120">120 minutes</option>
           </Select>
         </div>
       </div>
@@ -1102,6 +1118,11 @@ function Workspace({
     [editor, setEditor] = useState<{ entry?: WorkspaceEntry; kind: EntryKind } | null>(null),
     [error, setError] = useState(''),
     [loadState, setLoadState] = useState<'error' | 'loading' | 'ready'>('loading'),
+    [reminderSettings, setReminderSettings] = useState<ReminderSettings>({
+      enabled: false,
+      intervalMinutes: 30,
+      language: 'en'
+    }),
     [dark, setDark] = useState(localStorage.getItem('mowl-theme') === 'dark')
   async function reload(): Promise<void> {
     try {
@@ -1124,6 +1145,10 @@ function Workspace({
         setError(String(caught))
         setLoadState('error')
       })
+    void window.mowl.settings
+      .get()
+      .then(setReminderSettings)
+      .catch((caught) => setError(String(caught)))
   }, [])
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
@@ -1153,6 +1178,14 @@ function Workspace({
   async function switchDatabase(): Promise<void> {
     await window.mowl.database.close()
     close()
+  }
+  async function updateReminderSettings(settings: Partial<ReminderSettings>): Promise<void> {
+    try {
+      setReminderSettings(await window.mowl.settings.update(settings))
+      setError('')
+    } catch (caught) {
+      setError(String(caught))
+    }
   }
   const nav: Array<[View, string, ReactNode]> = [
     ['dashboard', 'Dashboard', <LayoutDashboard key="dashboard" size={17} />],
@@ -1200,6 +1233,14 @@ function Workspace({
             <Status status={day?.status ?? 'draft'} />
           </div>
           <div className="toolbar-actions">
+            <label className="toolbar-reminder">
+              <Clock3 size={17} />
+              <span>Reminders</span>
+              <Switch
+                checked={reminderSettings.enabled}
+                onCheckedChange={(enabled) => void updateReminderSettings({ enabled })}
+              />
+            </label>
             {day?.status === 'confirmed' ? (
               <Button onClick={() => void status('draft')} variant="outline">
                 <RotateCcw size={15} />
@@ -1454,7 +1495,12 @@ function Workspace({
               />
             )}
           {loadState === 'ready' && view === 'settings' && (
-            <SettingsView dark={dark} setDark={setDark} />
+            <SettingsView
+              dark={dark}
+              reminderSettings={reminderSettings}
+              setDark={setDark}
+              updateReminderSettings={updateReminderSettings}
+            />
           )}
         </div>
       </main>

@@ -36,6 +36,15 @@ export interface HealthCheck {
   status: 'ok'
 }
 
+export type ReminderIntervalMinutes = 15 | 30 | 60 | 120
+export type AppLanguage = 'cs' | 'en'
+
+export interface ReminderSettings {
+  enabled: boolean
+  intervalMinutes: ReminderIntervalMinutes
+  language: AppLanguage
+}
+
 export interface DatabaseMetadata {
   createdAt: string
   description: string
@@ -230,11 +239,11 @@ export interface IpcContract {
   }
   [IPC_CHANNELS.settings.get]: {
     request: undefined
-    response: never
+    response: ReminderSettings
   }
   [IPC_CHANNELS.settings.update]: {
-    request: Record<string, never>
-    response: never
+    request: Partial<ReminderSettings>
+    response: ReminderSettings
   }
   [IPC_CHANNELS.dialogs.openDatabase]: {
     request: undefined
@@ -267,6 +276,10 @@ export interface MowlApi {
     remove: (request: IpcContract[typeof IPC_CHANNELS.database.remove]['request']) => Promise<void>
   }
   health: () => Promise<HealthCheck>
+  settings: {
+    get: () => Promise<ReminderSettings>
+    update: (request: Partial<ReminderSettings>) => Promise<ReminderSettings>
+  }
   workspace: {
     deleteEntry: (request: { id: number }) => Promise<void>
     get: () => Promise<WorkspaceSnapshot>

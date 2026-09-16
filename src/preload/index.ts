@@ -12,6 +12,10 @@ const mowl: MowlApi = {
     remove: (request) => ipcRenderer.invoke(IPC_CHANNELS.database.remove, request)
   },
   health: () => ipcRenderer.invoke(IPC_CHANNELS.app.health),
+  settings: {
+    get: () => ipcRenderer.invoke(IPC_CHANNELS.settings.get),
+    update: (request) => ipcRenderer.invoke(IPC_CHANNELS.settings.update, request)
+  },
   workspace: {
     deleteEntry: (request) => ipcRenderer.invoke(IPC_CHANNELS.workspace.deleteEntry, request),
     get: () => ipcRenderer.invoke(IPC_CHANNELS.workspace.get),

@@ -457,6 +457,24 @@ textarea:focus-visible {
   align-items: center;
   gap: 9px;
 }
+.toolbar-reminder {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 8px 4px 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--foreground);
+  background: var(--surface-subtle);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.toolbar-reminder .switch {
+  transform: scale(1.08);
+  transform-origin: right center;
+}
 .day-control .input {
   width: 142px;
 }
@@ -955,6 +973,12 @@ tbody tr:hover {
     width: 36px;
     padding: 0;
     font-size: 0;
+  }
+  .toolbar-reminder span:not(.switch-thumb) {
+    display: none;
+  }
+  .toolbar-reminder {
+    padding-left: 8px;
   }
   .content-view {
     padding: 24px 16px 40px;

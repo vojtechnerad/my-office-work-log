@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import type { DatabaseMetadata } from '../../shared/ipc'
+import * as schema from './schema'
 import { databaseMetadata } from './schema'
 
 type MowlDatabase = BetterSQLite3Database<typeof import('./schema')>
@@ -53,7 +54,7 @@ function migrateDatabase(
 
   const sqlite = new Database(filePath)
   sqlite.pragma('foreign_keys = ON')
-  const database = drizzle({ client: sqlite, schema: { databaseMetadata } })
+  const database = drizzle({ client: sqlite, schema })
   migrate(database, { migrationsFolder })
 
   return { database, sqlite }

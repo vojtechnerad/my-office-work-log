@@ -37,17 +37,21 @@ import {
   filterWorkEntries,
   type WorkEntryFilters
 } from '../../shared/work-report'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
-  Badge,
-  Button,
   Dialog,
-  Field,
-  Input,
-  Label,
-  Select,
-  Switch,
-  Textarea
-} from './components/ui'
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { NativeSelect as Select } from '@/components/ui/native-select'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
 import { activateLanguage, useT, type Translate } from './i18n'
 
 type View =
@@ -155,7 +159,7 @@ function Startup({
                 <strong>{item.displayName}</strong>
                 <small>{item.description || item.filePath}</small>
               </span>
-              <Badge tone={item.status === 'available' ? 'green' : 'red'}>
+              <Badge className={item.status === 'available' ? 'badge-green' : 'badge-red'} variant="outline">
                 {t(`database.status.${item.status}`)}
               </Badge>
               {item.status === 'available' ? (
@@ -190,26 +194,38 @@ function Startup({
           {t('database.new')}
         </Button>
       </section>
-      <Dialog
-        onOpenChange={setCreateOpen}
-        open={createOpen}
-        title={t('database.create')}
-        description={t('database.createDetail')}
-      >
-        <form className="form-stack" onSubmit={(event) => void create(event)}>
-          <Field label={t('common.name')}>
-            <Input autoFocus name="name" required />
-          </Field>
-          <Field label={t('common.description')}>
-            <Textarea name="description" />
-          </Field>
-          <Field label={t('database.fileName')}>
-            <Input name="fileName" placeholder={t('database.fileNamePlaceholder')} />
-          </Field>
-          <div className="dialog-actions">
-            <Button type="submit">{t('common.create')}</Button>
-          </div>
-        </form>
+      <Dialog onOpenChange={setCreateOpen} open={createOpen}>
+        <DialogContent className="dialog-content max-w-[620px] gap-0 p-[22px] sm:max-w-[620px]">
+          <DialogHeader className="dialog-header mb-[22px] flex-row items-start gap-4">
+            <div>
+              <DialogTitle className="dialog-title">{t('database.create')}</DialogTitle>
+              <DialogDescription className="dialog-description">
+                {t('database.createDetail')}
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+          <form className="form-stack" onSubmit={(event) => void create(event)}>
+            <Field>
+              <FieldLabel>{t('common.name')}</FieldLabel>
+              <Input aria-label={t('common.name')} autoFocus name="name" required />
+            </Field>
+            <Field>
+              <FieldLabel>{t('common.description')}</FieldLabel>
+              <Textarea aria-label={t('common.description')} name="description" />
+            </Field>
+            <Field>
+              <FieldLabel>{t('database.fileName')}</FieldLabel>
+              <Input
+                aria-label={t('database.fileName')}
+                name="fileName"
+                placeholder={t('database.fileNamePlaceholder')}
+              />
+            </Field>
+            <div className="dialog-actions">
+              <Button type="submit">{t('common.create')}</Button>
+            </div>
+          </form>
+        </DialogContent>
       </Dialog>
     </main>
   )
@@ -230,7 +246,10 @@ function Brand({ compact = false }: { compact?: boolean }): React.JSX.Element {
 function Status({ status }: { status: 'confirmed' | 'draft' }): React.JSX.Element {
   const t = useT()
   return (
-    <Badge tone={status === 'confirmed' ? 'green' : 'neutral'}>
+    <Badge
+      className={status === 'confirmed' ? 'badge-green' : undefined}
+      variant={status === 'confirmed' ? 'outline' : 'secondary'}
+    >
       {status === 'confirmed' ? t('common.confirmed') : t('day.draft')}
     </Badge>
   )
@@ -401,73 +420,111 @@ function EntryEditor({
     onClose()
   }
   return (
-    <Dialog
-      onOpenChange={(open) => !open && onClose()}
-      open
-      title={entry ? t('editor.edit') : kind === 'work' ? t('editor.newWork') : t('editor.newFiller')}
-      description={locked ? t('editor.locked') : undefined}
-    >
-      <form className="editor-form" onSubmit={(event) => void save(event)}>
-        {error && <div className="notice error">{error}</div>}
-        <div className="form-grid three">
-          <Field label={t('common.date')}>
-            <Input
-              disabled={locked}
-              onChange={(event) => update('date', event.target.value)}
-              required
-              type="date"
-              value={form.date}
-            />
-          </Field>
-          <Field label={t('common.start')}>
-            <Input
-              disabled={locked}
-              onChange={(event) => update('startTime', event.target.value)}
-              required
-              type="time"
-              value={form.startTime}
-            />
-          </Field>
-          <Field label={t('common.end')}>
-            <Input
-              disabled={locked}
-              onChange={(event) => update('endTime', event.target.value)}
-              required
-              type="time"
-              value={form.endTime}
-            />
-          </Field>
-        </div>
-        {kind === 'work' ? (
-          <div className="form-grid two">
-            <Field label={t('common.account')}>
-              <Select
-                onChange={(event) => update('accountId', Number(event.target.value) || null)}
+    <Dialog onOpenChange={(open) => !open && onClose()} open>
+      <DialogContent className="dialog-content max-w-[620px] gap-0 p-[22px] sm:max-w-[620px]">
+        <DialogHeader className="dialog-header mb-[22px] flex-row items-start gap-4">
+          <div>
+            <DialogTitle className="dialog-title">
+              {entry ? t('editor.edit') : kind === 'work' ? t('editor.newWork') : t('editor.newFiller')}
+            </DialogTitle>
+            {locked && (
+              <DialogDescription className="dialog-description">
+                {t('editor.locked')}
+              </DialogDescription>
+            )}
+          </div>
+        </DialogHeader>
+        <form className="editor-form" onSubmit={(event) => void save(event)}>
+          {error && <div className="notice error">{error}</div>}
+          <div className="form-grid three">
+            <Field>
+              <FieldLabel>{t('common.date')}</FieldLabel>
+              <Input
+                aria-label={t('common.date')}
+                disabled={locked}
+                onChange={(event) => update('date', event.target.value)}
                 required
-                value={form.accountId ?? ''}
-              >
-                <option value="">{t('common.select')}</option>
-                {snapshot.accounts
-                  .filter((item) => item.isActive || item.id === entry?.accountId)
-                  .map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.code} · {item.name}
-                    </option>
-                  ))}
-              </Select>
+                type="date"
+                value={form.date}
+              />
             </Field>
-            <Field label={t('common.activity')}>
+            <Field>
+              <FieldLabel>{t('common.start')}</FieldLabel>
+              <Input
+                aria-label={t('common.start')}
+                disabled={locked}
+                onChange={(event) => update('startTime', event.target.value)}
+                required
+                type="time"
+                value={form.startTime}
+              />
+            </Field>
+            <Field>
+              <FieldLabel>{t('common.end')}</FieldLabel>
+              <Input
+                aria-label={t('common.end')}
+                disabled={locked}
+                onChange={(event) => update('endTime', event.target.value)}
+                required
+                type="time"
+                value={form.endTime}
+              />
+            </Field>
+          </div>
+          {kind === 'work' ? (
+            <div className="form-grid two">
+              <Field>
+                <FieldLabel>{t('common.account')}</FieldLabel>
+                <Select
+                  aria-label={t('common.account')}
+                  onChange={(event) => update('accountId', Number(event.target.value) || null)}
+                  required
+                  value={form.accountId ?? ''}
+                >
+                  <option value="">{t('common.select')}</option>
+                  {snapshot.accounts
+                    .filter((item) => item.isActive || item.id === entry?.accountId)
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.code} · {item.name}
+                      </option>
+                    ))}
+                </Select>
+              </Field>
+              <Field>
+                <FieldLabel>{t('common.activity')}</FieldLabel>
+                <Select
+                  aria-label={t('common.activity')}
+                  onChange={(event) => update('activityTypeId', Number(event.target.value) || null)}
+                  value={form.activityTypeId ?? ''}
+                >
+                  <option value="">{t('common.none')}</option>
+                  {snapshot.activityTypes
+                    .filter(
+                      (item) =>
+                        item.category === 'work' &&
+                        (item.isActive || item.id === entry?.activityTypeId)
+                    )
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                </Select>
+              </Field>
+            </div>
+          ) : (
+            <Field>
+              <FieldLabel>{t('editor.fillerActivity')}</FieldLabel>
               <Select
+                aria-label={t('editor.fillerActivity')}
                 onChange={(event) => update('activityTypeId', Number(event.target.value) || null)}
+                required
                 value={form.activityTypeId ?? ''}
               >
-                <option value="">{t('common.none')}</option>
+                <option value="">{t('common.select')}</option>
                 {snapshot.activityTypes
-                  .filter(
-                    (item) =>
-                      item.category === 'work' &&
-                      (item.isActive || item.id === entry?.activityTypeId)
-                  )
+                  .filter((item) => item.category === 'filler' && item.isActive)
                   .map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -475,75 +532,62 @@ function EntryEditor({
                   ))}
               </Select>
             </Field>
-          </div>
-        ) : (
-          <Field label={t('editor.fillerActivity')}>
-            <Select
-              onChange={(event) => update('activityTypeId', Number(event.target.value) || null)}
-              required
-              value={form.activityTypeId ?? ''}
-            >
-              <option value="">{t('common.select')}</option>
-              {snapshot.activityTypes
-                .filter((item) => item.category === 'filler' && item.isActive)
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-            </Select>
-          </Field>
-        )}
-        {kind === 'work' && (
-          <Field label={t('common.ticket')}>
-            <Input
-              onChange={(event) => update('ticketNumber', event.target.value)}
-              value={form.ticketNumber ?? ''}
+          )}
+          {kind === 'work' && (
+            <Field>
+              <FieldLabel>{t('common.ticket')}</FieldLabel>
+              <Input
+                aria-label={t('common.ticket')}
+                onChange={(event) => update('ticketNumber', event.target.value)}
+                value={form.ticketNumber ?? ''}
+              />
+            </Field>
+          )}
+          <Field>
+            <FieldLabel>{t('common.description')}</FieldLabel>
+            <Textarea
+              aria-label={t('common.description')}
+              onChange={(event) => update('description', event.target.value)}
+              value={form.description ?? ''}
             />
           </Field>
-        )}
-        <Field label={t('common.description')}>
-          <Textarea
-            onChange={(event) => update('description', event.target.value)}
-            value={form.description ?? ''}
-          />
-        </Field>
-        {entry && kind === 'work' && definitions.length > 0 && (
-          <section className="checklist-editor">
-            <h3>{t('checklist.customer')}</h3>
-            {definitions.map((definition) => {
-              const checked = entry.checklistValues.some(
-                (value) => value.checklistDefinitionId === definition.id && value.isChecked
-              )
-              return (
-                <Label className="check-row" key={definition.id}>
-                  <input
-                    checked={checked}
-                    onChange={(event) => void check(definition.id, event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>{definition.name}</span>
-                  {!definition.isActive && <Badge>{t('checklist.archived')}</Badge>}
-                </Label>
-              )
-            })}
-          </section>
-        )}
-        <div className="dialog-actions split-actions">
-          {entry && (
-            <Button
-              disabled={locked}
-              onClick={() => void remove()}
-              type="button"
-              variant="destructive"
-            >
-              <Trash2 size={15} />
-              {t('common.delete')}
-            </Button>
+          {entry && kind === 'work' && definitions.length > 0 && (
+            <section className="checklist-editor">
+              <h3>{t('checklist.customer')}</h3>
+              {definitions.map((definition) => {
+                const checked = entry.checklistValues.some(
+                  (value) => value.checklistDefinitionId === definition.id && value.isChecked
+                )
+                return (
+                  <Label className="check-row" key={definition.id}>
+                    <input
+                      checked={checked}
+                      onChange={(event) => void check(definition.id, event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>{definition.name}</span>
+                    {!definition.isActive && <Badge>{t('checklist.archived')}</Badge>}
+                  </Label>
+                )
+              })}
+            </section>
           )}
-          <Button type="submit">{t('editor.save')}</Button>
-        </div>
-      </form>
+          <div className="dialog-actions split-actions">
+            {entry && (
+              <Button
+                disabled={locked}
+                onClick={() => void remove()}
+                type="button"
+                variant="destructive"
+              >
+                <Trash2 size={15} />
+                {t('common.delete')}
+              </Button>
+            )}
+            <Button type="submit">{t('editor.save')}</Button>
+          </div>
+        </form>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -912,56 +956,71 @@ function ReferenceEditor({
     onClose()
   }
   return (
-    <Dialog onOpenChange={(open) => !open && onClose()} open title={t('reference.edit')}>
-      <form className="form-stack" onSubmit={(event) => void save(event)}>
-        {isAccount && (
-          <Field label={t('common.customer')}>
-            <Select defaultValue={item.customerId} name="customer">
-              {snapshot.customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.name}
-                </option>
-              ))}
-            </Select>
+    <Dialog onOpenChange={(open) => !open && onClose()} open>
+      <DialogContent className="dialog-content max-w-[620px] gap-0 p-[22px] sm:max-w-[620px]">
+        <DialogHeader className="dialog-header mb-[22px] flex-row items-start gap-4">
+          <div>
+            <DialogTitle className="dialog-title">{t('reference.edit')}</DialogTitle>
+          </div>
+        </DialogHeader>
+        <form className="form-stack" onSubmit={(event) => void save(event)}>
+          {isAccount && (
+            <Field>
+              <FieldLabel>{t('common.customer')}</FieldLabel>
+              <Select aria-label={t('common.customer')} defaultValue={item.customerId} name="customer">
+                {snapshot.customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>
+                    {customer.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          <Field>
+            <FieldLabel>{t('common.name')}</FieldLabel>
+            <Input aria-label={t('common.name')} defaultValue={item.name} name="name" required />
           </Field>
-        )}
-        <Field label={t('common.name')}>
-          <Input defaultValue={item.name} name="name" required />
-        </Field>
-        {isAccount && (
-          <>
-            <Field label={t('common.code')}>
-              <Input defaultValue={item.code} name="code" required />
-            </Field>
-            <div className="form-grid two">
-              <Field label={t('common.activeFrom')}>
-                <Input defaultValue={item.activeFrom} name="from" type="date" />
+          {isAccount && (
+            <>
+              <Field>
+                <FieldLabel>{t('common.code')}</FieldLabel>
+                <Input aria-label={t('common.code')} defaultValue={item.code} name="code" required />
               </Field>
-              <Field label={t('common.activeUntil')}>
-                <Input defaultValue={item.activeUntil ?? ''} name="until" type="date" />
+              <div className="form-grid two">
+                <Field>
+                  <FieldLabel>{t('common.activeFrom')}</FieldLabel>
+                  <Input aria-label={t('common.activeFrom')} defaultValue={item.activeFrom} name="from" type="date" />
+                </Field>
+                <Field>
+                  <FieldLabel>{t('common.activeUntil')}</FieldLabel>
+                  <Input aria-label={t('common.activeUntil')} defaultValue={item.activeUntil ?? ''} name="until" type="date" />
+                </Field>
+              </div>
+            </>
+          )}
+          {isActivity && (
+            <>
+              <Field>
+                <FieldLabel>{t('common.color')}</FieldLabel>
+                <Input aria-label={t('common.color')} defaultValue={item.color} name="color" type="color" />
               </Field>
-            </div>
-          </>
-        )}
-        {isActivity && (
-          <>
-            <Field label={t('common.color')}>
-              <Input defaultValue={item.color} name="color" type="color" />
+              <Field>
+                <FieldLabel>{t('reference.sortOrder')}</FieldLabel>
+                <Input aria-label={t('reference.sortOrder')} defaultValue={item.sortOrder} name="order" type="number" />
+              </Field>
+            </>
+          )}
+          {!isAccount && !isActivity && (
+            <Field>
+              <FieldLabel>{t('common.color')}</FieldLabel>
+              <Input aria-label={t('common.color')} defaultValue={item.color ?? '#111111'} name="color" type="color" />
             </Field>
-            <Field label={t('reference.sortOrder')}>
-              <Input defaultValue={item.sortOrder} name="order" type="number" />
-            </Field>
-          </>
-        )}
-        {!isAccount && !isActivity && (
-          <Field label={t('common.color')}>
-            <Input defaultValue={item.color ?? '#111111'} name="color" type="color" />
-          </Field>
-        )}
-        <div className="dialog-actions">
-          <Button type="submit">{t('common.saveChanges')}</Button>
-        </div>
-      </form>
+          )}
+          <div className="dialog-actions">
+            <Button type="submit">{t('common.saveChanges')}</Button>
+          </div>
+        </form>
+      </DialogContent>
     </Dialog>
   )
 }
@@ -1085,6 +1144,7 @@ function SettingsView({
             <small>{t('settings.languageDetail')}</small>
           </div>
           <Select
+            aria-label={t('settings.language')}
             onChange={(event) =>
               void updateReminderSettings({
                 language: event.target.value as ReminderSettings['language']
@@ -1119,6 +1179,7 @@ function SettingsView({
             <small>{t('settings.intervalDetail')}</small>
           </div>
           <Select
+            aria-label={t('settings.interval')}
             disabled={!reminderSettings.enabled}
             onChange={(event) =>
               void updateReminderSettings({
@@ -1431,22 +1492,28 @@ function Workspace({
                 </PageHeading>
               </div>
               <div className="filter-panel">
-                <Field label={t('common.from')}>
+                <Field>
+                  <FieldLabel>{t('common.from')}</FieldLabel>
                   <Input
+                    aria-label={t('common.from')}
                     onChange={(event) => updateFilter('dateFrom', event.target.value)}
                     type="date"
                     value={filters.dateFrom ?? ''}
                   />
                 </Field>
-                <Field label={t('common.to')}>
+                <Field>
+                  <FieldLabel>{t('common.to')}</FieldLabel>
                   <Input
+                    aria-label={t('common.to')}
                     onChange={(event) => updateFilter('dateTo', event.target.value)}
                     type="date"
                     value={filters.dateTo ?? ''}
                   />
                 </Field>
-                <Field label={t('common.customer')}>
+                <Field>
+                  <FieldLabel>{t('common.customer')}</FieldLabel>
                   <Select
+                    aria-label={t('common.customer')}
                     onChange={(event) => {
                       updateFilter('customerId', Number(event.target.value) || undefined)
                       updateFilter('accountId', undefined)
@@ -1461,8 +1528,10 @@ function Workspace({
                     ))}
                   </Select>
                 </Field>
-                <Field label={t('common.account')}>
+                <Field>
+                  <FieldLabel>{t('common.account')}</FieldLabel>
                   <Select
+                    aria-label={t('common.account')}
                     onChange={(event) =>
                       updateFilter('accountId', Number(event.target.value) || undefined)
                     }
@@ -1476,8 +1545,10 @@ function Workspace({
                     ))}
                   </Select>
                 </Field>
-                <Field label={t('common.activity')}>
+                <Field>
+                  <FieldLabel>{t('common.activity')}</FieldLabel>
                   <Select
+                    aria-label={t('common.activity')}
                     onChange={(event) =>
                       updateFilter('activityTypeId', Number(event.target.value) || undefined)
                     }
@@ -1491,15 +1562,19 @@ function Workspace({
                     ))}
                   </Select>
                 </Field>
-                <Field label={t('common.description')}>
+                <Field>
+                  <FieldLabel>{t('common.description')}</FieldLabel>
                   <Input
+                    aria-label={t('common.description')}
                     onChange={(event) => updateFilter('description', event.target.value)}
                     placeholder={t('filter.containsText')}
                     value={filters.description ?? ''}
                   />
                 </Field>
-                <Field label={t('common.ticket')}>
+                <Field>
+                  <FieldLabel>{t('common.ticket')}</FieldLabel>
                   <Input
+                    aria-label={t('common.ticket')}
                     onChange={(event) => updateFilter('ticketNumber', event.target.value)}
                     placeholder={t('filter.containsNumber')}
                     value={filters.ticketNumber ?? ''}

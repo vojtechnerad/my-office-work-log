@@ -159,7 +159,10 @@ function Startup({
                 <strong>{item.displayName}</strong>
                 <small>{item.description || item.filePath}</small>
               </span>
-              <Badge className={item.status === 'available' ? 'badge-green' : 'badge-red'} variant="outline">
+              <Badge
+                className={item.status === 'available' ? 'badge-green' : 'badge-red'}
+                variant="outline"
+              >
                 {t(`database.status.${item.status}`)}
               </Badge>
               {item.status === 'available' ? (
@@ -425,7 +428,11 @@ function EntryEditor({
         <DialogHeader className="dialog-header mb-[22px] flex-row items-start gap-4">
           <div>
             <DialogTitle className="dialog-title">
-              {entry ? t('editor.edit') : kind === 'work' ? t('editor.newWork') : t('editor.newFiller')}
+              {entry
+                ? t('editor.edit')
+                : kind === 'work'
+                  ? t('editor.newWork')
+                  : t('editor.newFiller')}
             </DialogTitle>
             {locked && (
               <DialogDescription className="dialog-description">
@@ -967,7 +974,11 @@ function ReferenceEditor({
           {isAccount && (
             <Field>
               <FieldLabel>{t('common.customer')}</FieldLabel>
-              <Select aria-label={t('common.customer')} defaultValue={item.customerId} name="customer">
+              <Select
+                aria-label={t('common.customer')}
+                defaultValue={item.customerId}
+                name="customer"
+              >
                 {snapshot.customers.map((customer) => (
                   <option key={customer.id} value={customer.id}>
                     {customer.name}
@@ -984,16 +995,31 @@ function ReferenceEditor({
             <>
               <Field>
                 <FieldLabel>{t('common.code')}</FieldLabel>
-                <Input aria-label={t('common.code')} defaultValue={item.code} name="code" required />
+                <Input
+                  aria-label={t('common.code')}
+                  defaultValue={item.code}
+                  name="code"
+                  required
+                />
               </Field>
               <div className="form-grid two">
                 <Field>
                   <FieldLabel>{t('common.activeFrom')}</FieldLabel>
-                  <Input aria-label={t('common.activeFrom')} defaultValue={item.activeFrom} name="from" type="date" />
+                  <Input
+                    aria-label={t('common.activeFrom')}
+                    defaultValue={item.activeFrom}
+                    name="from"
+                    type="date"
+                  />
                 </Field>
                 <Field>
                   <FieldLabel>{t('common.activeUntil')}</FieldLabel>
-                  <Input aria-label={t('common.activeUntil')} defaultValue={item.activeUntil ?? ''} name="until" type="date" />
+                  <Input
+                    aria-label={t('common.activeUntil')}
+                    defaultValue={item.activeUntil ?? ''}
+                    name="until"
+                    type="date"
+                  />
                 </Field>
               </div>
             </>
@@ -1002,18 +1028,33 @@ function ReferenceEditor({
             <>
               <Field>
                 <FieldLabel>{t('common.color')}</FieldLabel>
-                <Input aria-label={t('common.color')} defaultValue={item.color} name="color" type="color" />
+                <Input
+                  aria-label={t('common.color')}
+                  defaultValue={item.color}
+                  name="color"
+                  type="color"
+                />
               </Field>
               <Field>
                 <FieldLabel>{t('reference.sortOrder')}</FieldLabel>
-                <Input aria-label={t('reference.sortOrder')} defaultValue={item.sortOrder} name="order" type="number" />
+                <Input
+                  aria-label={t('reference.sortOrder')}
+                  defaultValue={item.sortOrder}
+                  name="order"
+                  type="number"
+                />
               </Field>
             </>
           )}
           {!isAccount && !isActivity && (
             <Field>
               <FieldLabel>{t('common.color')}</FieldLabel>
-              <Input aria-label={t('common.color')} defaultValue={item.color ?? '#111111'} name="color" type="color" />
+              <Input
+                aria-label={t('common.color')}
+                defaultValue={item.color ?? '#111111'}
+                name="color"
+                type="color"
+              />
             </Field>
           )}
           <div className="dialog-actions">
@@ -1049,7 +1090,10 @@ function ChecklistRow({
     <ManagementRow
       active={definition.isActive}
       key={definition.id}
-      meta={snapshot.customers.find((item) => item.id === definition.customerId)?.name ?? t('common.unknown')}
+      meta={
+        snapshot.customers.find((item) => item.id === definition.customerId)?.name ??
+        t('common.unknown')
+      }
       name={
         <Input
           aria-label={t('checklist.item')}
